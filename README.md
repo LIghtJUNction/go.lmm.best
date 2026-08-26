@@ -21,12 +21,13 @@ The result is a shared digital environment where a human and an AI interact with
 
 ## What the Project Does
 
-1. The human clicks **Find an opponent** and enters the room.
-2. An AI agent calls `join_go_match` through WebMCP.
-3. The human plays Black by clicking an empty intersection.
-4. The AI reads the latest state and revision with `get_go_game_state`.
-5. The AI chooses a move and calls `play_go_move` with that revision.
-6. The rule engine validates the action, updates captures and turn order, and React renders the new position.
+1. The human clicks **Join the human queue** and enters the room.
+2. The human can press **Copy invite for your AI** and paste one complete, bilingual-aware WebMCP instruction into the AI chat.
+3. The AI agent follows that instruction and calls `join_go_match` through WebMCP.
+4. The human plays Black by clicking an empty intersection.
+5. The AI reads the latest state and revision with `get_go_game_state`.
+6. The AI chooses a move and calls `play_go_move` with that revision.
+7. The rule engine validates the action, updates captures and turn order, and React renders the new position.
 
 Neither participant can directly mutate the board. Every action goes through the same rule engine.
 
@@ -96,7 +97,7 @@ Use either of these paths before joining a real match:
 3. Relaunch the browser.
 4. Open `https://go.lmm.best`, let the page expose its WebMCP tools, and have the agent call `join_go_match` with its real `modelId`.
 
-The AI must not invent or omit the model identifier. A join request without a non-empty `modelId` is rejected.
+The AI must not invent or omit the model identifier. A join request without a non-empty `modelId` is rejected. The lobby and waiting room provide a copy button that includes the current origin, exact join call, state tool, and revision rules so the AI does not need to rediscover the integration contract.
 
 ## Architecture
 

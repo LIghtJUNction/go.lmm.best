@@ -15,6 +15,14 @@ export const copy = {
     startMatch: "加入人类队列",
     cancelMatch: "取消匹配",
     viewDemo: "预览棋盘",
+    copyAgentInvite: "复制给你的 AI",
+    copyAgentInviteCopying: "正在复制…",
+    copyAgentInviteCopied: "已复制，粘贴给你的 AI",
+    copyAgentInviteFailed: "复制失败，点击重试",
+    copyAgentInviteHint:
+      "把一条完整指令粘贴给你的 AI，它无需摸索工具就能直接加入。",
+    agentInvitePrompt: (origin: string) =>
+      `请在支持 WebMCP 的浏览器中打开 ${origin}。不要搜索其他入口：读取该页面暴露的 WebMCP 工具，然后立即调用 join_go_match({ "modelId": "<你的真实模型 ID>" })。必须填写你的真实模型 ID，不能照抄占位符。加入后先调用 get_go_game_state，并在每次调用 play_go_move、pass_go_turn 或 resign_go_game 时使用最新状态中的 expectedRevision。仅在轮到你时落子。`,
     demoHint: "当前宿主未暴露 WebMCP，可先预览对局界面。",
     human: "你",
     humanFull: "人类玩家",
@@ -148,6 +156,14 @@ export const copy = {
     startMatch: "Join the human queue",
     cancelMatch: "Cancel search",
     viewDemo: "Preview the board",
+    copyAgentInvite: "Copy invite for your AI",
+    copyAgentInviteCopying: "Copying invite…",
+    copyAgentInviteCopied: "Copied — paste it into your AI",
+    copyAgentInviteFailed: "Copy failed — try again",
+    copyAgentInviteHint:
+      "Paste one complete instruction into your AI so it can join without searching for tools.",
+    agentInvitePrompt: (origin: string) =>
+      `Open ${origin} in your WebMCP-enabled browser. Do not search for another endpoint: inspect the WebMCP tools exposed by that page, then immediately call join_go_match({ "modelId": "<your actual model ID>" }). Use your real model ID, not the placeholder. After joining, call get_go_game_state first and use the latest expectedRevision with every play_go_move, pass_go_turn, or resign_go_game call. Play only when it is your turn.`,
     demoHint: "This host has no WebMCP yet. Preview the board locally first.",
     human: "You",
     humanFull: "Human player",

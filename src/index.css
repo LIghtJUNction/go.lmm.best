@@ -8,6 +8,7 @@
 @theme inline {
   --font-heading: "Newsreader Variable", "Songti SC", "Noto Serif CJK SC", serif;
   --font-sans: "Geist Variable", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-cn: "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -49,42 +50,62 @@
 }
 
 :root {
-  --background: #f4f1e8;
-  --foreground: #20251f;
-  --card: #fffdf8;
-  --card-foreground: #20251f;
-  --popover: #fffdf8;
-  --popover-foreground: #20251f;
-  --primary: #2f6b52;
-  --primary-foreground: #fffdf8;
-  --secondary: #eae5d9;
-  --secondary-foreground: #30362e;
-  --muted: #ece7dc;
-  --muted-foreground: #697068;
-  --accent: #dce8e0;
-  --accent-foreground: #24513f;
-  --destructive: #9f493e;
-  --border: #d2ccbe;
+  color-scheme: light;
+
+  --paper: #f4f1e8;
+  --paper-raised: #fffdf8;
+  --paper-muted: #eae5d9;
+  --ink: #20251f;
+  --ink-muted: #697068;
+  --line: #d2ccbe;
+  --jade: #2f6b52;
+  --jade-deep: #24513f;
+  --jade-soft: #dce8e0;
+  --danger: #9f493e;
+
+  --background: var(--paper);
+  --foreground: var(--ink);
+  --card: var(--paper-raised);
+  --card-foreground: var(--ink);
+  --popover: var(--paper-raised);
+  --popover-foreground: var(--ink);
+  --primary: var(--jade);
+  --primary-foreground: var(--paper-raised);
+  --secondary: var(--jade-soft);
+  --secondary-foreground: var(--jade-deep);
+  --muted: var(--paper-muted);
+  --muted-foreground: var(--ink-muted);
+  --accent: #ece7dc;
+  --accent-foreground: #30362e;
+  --destructive: var(--danger);
+  --border: var(--line);
   --input: #c7c0b1;
   --ring: #477a64;
-  --chart-1: #2f6b52;
+  --chart-1: var(--jade);
   --chart-2: #6f927c;
   --chart-3: #c99851;
-  --chart-4: #697068;
-  --chart-5: #9f493e;
+  --chart-4: var(--ink-muted);
+  --chart-5: var(--danger);
   --radius: 0.75rem;
   --sidebar: #eee9de;
-  --sidebar-foreground: #20251f;
-  --sidebar-primary: #2f6b52;
-  --sidebar-primary-foreground: #fffdf8;
-  --sidebar-accent: #dce8e0;
-  --sidebar-accent-foreground: #24513f;
-  --sidebar-border: #d2ccbe;
-  --sidebar-ring: #477a64;
+  --sidebar-foreground: var(--ink);
+  --sidebar-primary: var(--jade);
+  --sidebar-primary-foreground: var(--paper-raised);
+  --sidebar-accent: var(--jade-soft);
+  --sidebar-accent-foreground: var(--jade-deep);
+  --sidebar-border: var(--line);
+  --sidebar-ring: var(--ring);
   --board-light: #e2ba73;
   --board-base: #cc9a52;
   --board-deep: #b67e39;
   --board-line: #6d4c24;
+
+  --motion-instant: 120ms;
+  --motion-fast: 180ms;
+  --motion-ui: 260ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --shadow-action: 0 1px 2px rgb(32 37 31 / 14%), 0 7px 18px rgb(47 107 82 / 8%);
+  --shadow-action-hover: 0 2px 4px rgb(32 37 31 / 16%), 0 10px 24px rgb(47 107 82 / 12%);
 }
 
 @layer base {
@@ -93,21 +114,66 @@
   }
 
   html {
-    @apply font-sans antialiased;
+    @apply bg-background font-sans antialiased;
+    scrollbar-gutter: stable;
+    text-rendering: optimizeLegibility;
   }
 
   body {
     @apply min-h-svh bg-background text-foreground;
+    background-image: linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--paper-raised) 56%, transparent),
+      transparent 24rem
+    );
+    font-feature-settings: "kern" 1, "liga" 1;
+  }
+
+  #root {
+    min-height: 100svh;
+    isolation: isolate;
   }
 
   h1,
   h2,
   h3 {
     @apply font-heading;
+    font-optical-sizing: auto;
+    letter-spacing: -0.025em;
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+
+  code,
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+
+  ::selection {
+    color: var(--ink);
+    background: color-mix(in srgb, var(--jade-soft) 88%, transparent);
+  }
+
+  button,
+  [role="button"] {
+    -webkit-tap-highlight-color: transparent;
   }
 
   button:not(:disabled),
   [role="button"]:not(:disabled) {
     cursor: pointer;
+  }
+
+  :focus-visible {
+    scroll-margin-block: 1rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
   }
 }
