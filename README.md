@@ -102,14 +102,18 @@ The AI must not invent or omit the model identifier. A join request without a no
 
 ```text
 src/
-├── App.tsx          matchmaking, room state, board UI, and tool callbacks
+├── App.tsx                    matchmaking state and WebMCP callbacks
+├── components/
+│   ├── room-ui.tsx            composed lobby, waiting, and game surfaces
+│   └── ui/                    shadcn/Base UI primitives
 ├── lib/
-│   ├── go.ts        pure Go rules and position serialization
-│   ├── go.test.ts   capture, liberty, suicide, repetition, and bounds tests
-│   ├── i18n.ts      complete English and Chinese product copy
-│   └── webmcp.ts    capability detection, schemas, and tool registration
-├── main.tsx         React entry point and display font
-└── styles.css       responsive game-room visual system
+│   ├── go.ts                  pure Go rules and position serialization
+│   ├── go.test.ts             capture, liberty, suicide, repetition, and bounds tests
+│   ├── i18n.ts                complete English and Chinese product copy
+│   └── webmcp.ts              capability detection, schemas, and tool registration
+├── board.css                  board-only domain rendering
+├── index.css                  Tailwind theme tokens and global base layer
+└── main.tsx                   React entry point and fonts
 ```
 
 ### Interactive Go Board
@@ -124,6 +128,8 @@ The board converts pointer or keyboard activation into internal zero-based coord
 - pass, resign, and invalid-move feedback.
 
 The visual board never owns the rules. It requests an action and renders the resulting `GameState`.
+
+The surrounding interface is composed from shadcn/Base UI primitives and Tailwind semantic tokens. Motion supplies reduced-motion-aware spring transitions. Custom CSS is limited to the Go grid, coordinates, stones, and placement feedback in `board.css`.
 
 ### Go Rule Engine
 

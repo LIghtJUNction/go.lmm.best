@@ -1,15 +1,15 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
   Authored thumbnail for go.lmm.best.
-  Direction: a late-night Go broadcast desk — warm board, ink-black room, moss-green live signal.
+  Direction: Quiet Go Salon — warm paper, dark ink, honest wood, restrained jade state signals.
   Purpose: make the Go board unmistakable at social-card size while preserving the human/WebMCP AI handoff.
 -->
 <svg width="1200" height="630" viewBox="0 0 1200 630" fill="none" xmlns="http://www.w3.org/2000/svg">
   <defs>
     <linearGradient id="background" x1="84" y1="22" x2="1090" y2="662" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#18201B"/>
-      <stop offset="0.58" stop-color="#101512"/>
-      <stop offset="1" stop-color="#080B09"/>
+      <stop stop-color="#F8F5ED"/>
+      <stop offset="0.58" stop-color="#F4F1E8"/>
+      <stop offset="1" stop-color="#EAE5D9"/>
     </linearGradient>
     <linearGradient id="board" x1="700" y1="76" x2="1143" y2="570" gradientUnits="userSpaceOnUse">
       <stop stop-color="#E4B969"/>
@@ -27,13 +27,13 @@
       <stop offset="1" stop-color="#B9B9B3"/>
     </radialGradient>
     <filter id="boardShadow" x="615" y="18" width="602" height="602" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
-      <feDropShadow dx="0" dy="24" stdDeviation="22" flood-color="#000000" flood-opacity="0.48"/>
+      <feDropShadow dx="0" dy="18" stdDeviation="20" flood-color="#51452F" flood-opacity="0.2"/>
     </filter>
     <filter id="stoneShadow" x="-50%" y="-50%" width="200%" height="200%">
       <feDropShadow dx="0" dy="4" stdDeviation="3" flood-color="#1A1308" flood-opacity="0.46"/>
     </filter>
     <filter id="greenGlow" x="-200%" y="-200%" width="500%" height="500%">
-      <feDropShadow dx="0" dy="0" stdDeviation="6" flood-color="#A9E45B" flood-opacity="0.7"/>
+      <feDropShadow dx="0" dy="0" stdDeviation="4" flood-color="#2F6B52" flood-opacity="0.2"/>
     </filter>
     <pattern id="woodGrain" width="42" height="42" patternUnits="userSpaceOnUse" patternTransform="rotate(7)">
       <path d="M-8 10C4 4 23 5 50 15" stroke="#7A4C1E" stroke-opacity="0.09" stroke-width="1"/>
@@ -42,47 +42,47 @@
   </defs>
 
   <rect width="1200" height="630" fill="url(#background)"/>
-  <path d="M0 517C165 472 349 495 534 630H0V517Z" fill="#1C2720" fill-opacity="0.72"/>
-  <path d="M0 0H544L376 630H0V0Z" fill="#1A211D" fill-opacity="0.42"/>
-  <path d="M560 0L420 630" stroke="#708072" stroke-opacity="0.11"/>
-  <path d="M586 0L446 630" stroke="#708072" stroke-opacity="0.06"/>
+  <path d="M0 517C165 472 349 495 534 630H0V517Z" fill="#DED8CB" fill-opacity="0.45"/>
+  <path d="M0 0H544L376 630H0V0Z" fill="#FFFDF8" fill-opacity="0.42"/>
+  <path d="M560 0L420 630" stroke="#D2CCBE" stroke-opacity="0.42"/>
+  <path d="M586 0L446 630" stroke="#D2CCBE" stroke-opacity="0.26"/>
 
   <g transform="translate(72 62)">
     <g aria-label="go.lmm.best brand mark">
-      <circle cx="10" cy="10" r="10" fill="#F4F1E8"/>
-      <circle cx="30" cy="10" r="10" fill="#111513" stroke="#F4F1E8" stroke-opacity="0.35"/>
-      <circle cx="50" cy="10" r="10" fill="#A9E45B"/>
+      <circle cx="10" cy="10" r="10" fill="#20251F"/>
+      <circle cx="30" cy="10" r="10" fill="#FFFDF8" stroke="#D2CCBE"/>
+      <circle cx="50" cy="10" r="10" fill="#2F6B52"/>
     </g>
-    <text x="74" y="19" fill="#F4F1E8" font-family="Noto Sans CJK SC, sans-serif" font-size="29" font-weight="700" letter-spacing="0.2">go.lmm.best</text>
+    <text x="74" y="19" fill="#20251F" font-family="Noto Sans CJK SC, sans-serif" font-size="29" font-weight="700" letter-spacing="0.2">go.lmm.best</text>
   </g>
 
   <g transform="translate(72 178)">
-    <text fill="#F4F1E8" font-family="Noto Sans CJK SC, sans-serif" font-size="70" font-weight="800" letter-spacing="-2">
+    <text fill="#20251F" font-family="Noto Sans CJK SC, sans-serif" font-size="70" font-weight="800" letter-spacing="-2">
       <tspan x="0" y="0">HUMAN PLAYS.</tspan>
-      <tspan x="0" y="86" fill="#A9E45B">AI JOINS.</tspan>
+      <tspan x="0" y="86" fill="#2F6B52">AI JOINS.</tspan>
     </text>
-    <text x="3" y="143" fill="#AAB4AC" font-family="Noto Sans CJK SC, sans-serif" font-size="25" font-weight="400">Play Go through WebMCP</text>
+    <text x="3" y="143" fill="#697068" font-family="Noto Sans CJK SC, sans-serif" font-size="25" font-weight="400">Play Go through WebMCP</text>
   </g>
 
   <g transform="translate(72 399)">
-    <rect width="456" height="104" rx="12" fill="#101512" stroke="#415047"/>
-    <circle cx="24" cy="23" r="5" fill="#A9E45B" filter="url(#greenGlow)"/>
-    <text x="43" y="28" fill="#DDF5C1" font-family="Noto Sans CJK SC, sans-serif" font-size="13" font-weight="700" letter-spacing="1.8">AI AGENT  →  WEBMCP</text>
-    <rect x="18" y="42" width="420" height="34" rx="6" fill="#1B241E"/>
-    <text x="31" y="64" fill="#F4F1E8" font-family="DejaVu Sans Mono, monospace" font-size="13">play_go_move({ "coordinate": "E6" })</text>
-    <circle cx="24" cy="89" r="3.5" fill="#A9E45B"/>
-    <text x="37" y="94" fill="#879D8C" font-family="Noto Sans CJK SC, sans-serif" font-size="11" font-weight="600" letter-spacing="1.2">TOOL RESULT · MOVE ACCEPTED</text>
+    <rect width="456" height="104" rx="12" fill="#FFFDF8" stroke="#D2CCBE"/>
+    <circle cx="24" cy="23" r="5" fill="#2F6B52" filter="url(#greenGlow)"/>
+    <text x="43" y="28" fill="#2F6B52" font-family="Noto Sans CJK SC, sans-serif" font-size="13" font-weight="700" letter-spacing="1.8">AI AGENT  →  WEBMCP</text>
+    <rect x="18" y="42" width="420" height="34" rx="6" fill="#ECE7DC"/>
+    <text x="31" y="64" fill="#20251F" font-family="DejaVu Sans Mono, monospace" font-size="13">play_go_move({ "coordinate": "E6" })</text>
+    <circle cx="24" cy="89" r="3.5" fill="#2F6B52"/>
+    <text x="37" y="94" fill="#697068" font-family="Noto Sans CJK SC, sans-serif" font-size="11" font-weight="600" letter-spacing="1.2">TOOL RESULT · MOVE ACCEPTED</text>
   </g>
-  <path d="M528 451H582C604 451 619 433 619 411V338C619 323 631 315 646 315" stroke="#A9E45B" stroke-width="2" stroke-dasharray="5 7" stroke-linecap="round"/>
-  <path d="M638 308L650 315L638 322" stroke="#A9E45B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M528 451H582C604 451 619 433 619 411V338C619 323 631 315 646 315" stroke="#2F6B52" stroke-width="2" stroke-dasharray="5 7" stroke-linecap="round"/>
+  <path d="M638 308L650 315L638 322" stroke="#2F6B52" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
 
   <g transform="translate(72 555)">
-    <line x1="0" y1="0" x2="378" y2="0" stroke="#647167" stroke-opacity="0.35"/>
-    <text x="0" y="31" fill="#7F8B82" font-family="Noto Sans CJK SC, sans-serif" font-size="15">TAKE A SEAT</text>
+    <line x1="0" y1="0" x2="378" y2="0" stroke="#D2CCBE"/>
+    <text x="0" y="31" fill="#697068" font-family="Noto Sans CJK SC, sans-serif" font-size="15">TAKE A SEAT</text>
     <circle cx="124" cy="26" r="3" fill="#536058"/>
-    <text x="142" y="31" fill="#7F8B82" font-family="Noto Sans CJK SC, sans-serif" font-size="15">AI CHECKS IN</text>
+    <text x="142" y="31" fill="#697068" font-family="Noto Sans CJK SC, sans-serif" font-size="15">AI CHECKS IN</text>
     <circle cx="270" cy="26" r="3" fill="#536058"/>
-    <text x="288" y="31" fill="#F4F1E8" font-family="Noto Sans CJK SC, sans-serif" font-size="15">PLAY GO</text>
+    <text x="288" y="31" fill="#20251F" font-family="Noto Sans CJK SC, sans-serif" font-size="15">PLAY GO</text>
   </g>
 
   <g filter="url(#boardShadow)">
@@ -117,10 +117,10 @@
     <circle cx="859" cy="421" r="23" fill="url(#whiteStone)"/>
   </g>
 
-  <circle cx="912" cy="368" r="7" fill="#A9E45B" stroke="#111513" stroke-width="3"/>
+  <circle cx="912" cy="368" r="7" fill="#2F6B52" stroke="#FFFDF8" stroke-width="3"/>
   <g transform="translate(1088 74)">
-    <rect width="58" height="28" rx="14" fill="#152019" fill-opacity="0.9"/>
-    <circle cx="16" cy="14" r="4" fill="#A9E45B"/>
-    <text x="27" y="18" fill="#DDF5C1" font-family="Noto Sans CJK SC, sans-serif" font-size="10" font-weight="700" letter-spacing="1">LIVE</text>
+    <rect width="58" height="28" rx="14" fill="#DCE8E0"/>
+    <circle cx="16" cy="14" r="4" fill="#2F6B52"/>
+    <text x="27" y="18" fill="#24513F" font-family="Noto Sans CJK SC, sans-serif" font-size="10" font-weight="700" letter-spacing="1">LIVE</text>
   </g>
 </svg>
