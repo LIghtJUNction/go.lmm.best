@@ -952,6 +952,9 @@ export function GameRoom({
               "-mx-4 overflow-x-auto overscroll-x-contain sm:mx-0",
               largeBoard && "pb-2",
             )}
+            role={largeBoard ? "region" : undefined}
+            aria-label={largeBoard ? t.panBoardHint : undefined}
+            tabIndex={largeBoard ? 0 : undefined}
           >
             <m.div
               className={cn(

@@ -11,6 +11,8 @@ const requiredPromptTerms = [
   "play_go_move",
   "pass_go_turn",
   "resign_go_game",
+  "respond_go_scoring",
+  "send_go_message",
 ];
 
 describe.each([
@@ -25,29 +27,31 @@ describe.each([
 });
 
 describe("AI invite capability guard", () => {
-  it("stops English agents after one failed tool check", () => {
+  it("checks direct tools, then the controlled bridge, and stops on failure", () => {
     const prompt = copy.en.agentInvitePrompt("https://go.lmm.best");
 
-    expect(prompt).toContain("same browser tab and session");
-    expect(prompt).toContain("do not open a new tab");
-    expect(prompt).toContain("Join the human queue");
-    expect(prompt).toContain("exactly one capability check");
+    expect(prompt).toContain("one controlled capability check");
+    expect(prompt).toContain("tools exposed directly");
+    expect(prompt).toContain("window.goWebMCP.listTools()");
     expect(prompt).toContain("Do not web-search");
+    expect(prompt).toContain("do not inspect source, DOM, or network");
     expect(prompt).toContain("do not reload");
-    expect(prompt).toContain("switch browser bindings");
-    expect(prompt).toContain("reply only");
+    expect(prompt).toContain("If neither path exposes join_go_match");
+    expect(prompt).toContain("stop immediately");
+    expect(prompt).toContain("AI may queue before a human");
   });
 
-  it("stops Chinese agents after one failed tool check", () => {
+  it("uses the same bounded capability flow in Chinese", () => {
     const prompt = copy.zh.agentInvitePrompt("https://go.lmm.best");
 
-    expect(prompt).toContain("同一个标签页和浏览器会话");
-    expect(prompt).toContain("不要打开新标签页");
-    expect(prompt).toContain("加入人类队列");
-    expect(prompt).toContain("只做一次能力检查");
+    expect(prompt).toContain("一次受控能力检查");
+    expect(prompt).toContain("页面直接暴露的工具");
+    expect(prompt).toContain("window.goWebMCP.listTools()");
     expect(prompt).toContain("不要搜索网页");
+    expect(prompt).toContain("不要检查源码、DOM 或网络");
     expect(prompt).toContain("不要刷新");
-    expect(prompt).toContain("不要切换浏览器绑定");
-    expect(prompt).toContain("只回复");
+    expect(prompt).toContain("两条路径都没有 join_go_match");
+    expect(prompt).toContain("立即停止");
+    expect(prompt).toContain("AI 可以在人类之前入队");
   });
 });

@@ -22,9 +22,9 @@ export const copy = {
     switchToDark: "切换到暗色模式",
     switchToLight: "切换到亮色模式",
     copyAgentInviteHint:
-      "先加入人类队列，再粘贴给控制当前标签页的 WebMCP Agent；另一个浏览器会话看不到本地对局。",
+      "AI 可以在支持 WebMCP 的浏览器中先行入队；保持页面连接，后端会跨会话按 FIFO 匹配。",
     agentInvitePrompt: (origin: string) =>
-      `请使用支持 WebMCP 的交互式浏览器控制 ${origin} 当前这个标签页。必须使用人类已进入“等待 AI 对手”的同一个标签页和浏览器会话；不要打开新标签页、另一个浏览器或另一台设备。如果页面尚未候场，请让用户先点击“加入人类队列”。只做一次能力检查：查看当前页面实际暴露给你的工具列表，寻找 join_go_match。不要搜索网页，不要检查源码、DOM 或网络，不要刷新或等待工具注册，不要切换浏览器绑定，也不要猜测其他入口；实时后端人数提示与这次能力检查无关。如果第一次检查没有 join_go_match，请立即停止，只回复“当前 Chat/浏览器模式未暴露 WebMCP 工具，无法加入对局”。如果存在 join_go_match，请立即调用 join_go_match({ "modelId": "<你的真实模型 ID>" })。必须填写你的真实模型 ID，不能照抄占位符。加入后先调用 get_go_game_state，并在每次调用 play_go_move、pass_go_turn 或 resign_go_game 时使用最新状态中的 expectedRevision。仅在轮到你时落子。`,
+      `请在支持 WebMCP 的交互式浏览器中打开 ${origin}。只做一次受控能力检查：先查看当前页面直接暴露的工具，寻找 join_go_match；如果宿主没有直接转发页面工具，但提供受控 CDP 运行时，则仅检查 window.goWebMCP.listTools()。不要搜索网页，不要检查源码、DOM 或网络，也不要刷新或等待工具出现。如果两条路径都没有 join_go_match，立即停止并回复：“当前浏览器会话没有暴露 join_go_match，因此我无法加入这局游戏。”如果存在，调用 join_go_match，并把 modelId 设为当前真实模型 ID；可选传 displayName。AI 可以在人类之前入队；收到 queued 后保持页面连接。匹配后调用 get_go_game_state。仅在轮到 AI 时行动，并为 play_go_move、pass_go_turn、resign_go_game 或 respond_go_scoring 传入最新 expectedRevision；可随时用 send_go_message 发言。每次状态改变后重新读取状态，绝不猜测坐标、轮次或 revision。`,
     demoHint: "当前宿主未暴露 WebMCP，可先预览对局界面。",
     human: "你",
     humanFull: "人类玩家",
@@ -92,9 +92,9 @@ export const copy = {
     queuePositionValue: "#01",
     elapsed: "已等待",
     aiCallHint: "让你的 Agent 这样加入",
-    agentJoinStepOne: "让 WebMCP Agent 接管当前这个候场标签页。",
-    agentJoinStepTwo: "只检查一次工具列表；没有 join_go_match 就停止。",
-    agentJoinStepThree: "使用真实模型 ID 调用以下工具。",
+    agentJoinStepOne: "在支持 WebMCP 的浏览器打开本站并保持连接。",
+    agentJoinStepTwo: "依次检查直接工具或受控 CDP 桥；没有加入工具就停止。",
+    agentJoinStepThree: "用真实模型 ID 入队；AI 可以先于人类等待。",
     toolJoin: "join_go_match",
     listening: "正在监听 AI 工具调用",
     cancelHint: "取消后可以随时重新入场",
@@ -231,9 +231,9 @@ export const copy = {
     switchToDark: "Switch to dark mode",
     switchToLight: "Switch to light mode",
     copyAgentInviteHint:
-      "Join the human queue first, then paste into a WebMCP agent controlling this tab; another browser session cannot see the local game.",
+      "The AI may queue first in any WebMCP-enabled browser; keep it connected and the backend will match sessions by FIFO.",
     agentInvitePrompt: (origin: string) =>
-      `Use an interactive WebMCP-enabled browser to control this exact ${origin} tab. You must use the same browser tab and session where the human already sees “Waiting for an AI opponent”; do not open a new tab, another browser, or another device. If the page is not waiting yet, ask the user to click “Join the human queue” first. Perform exactly one capability check: inspect the tools actually exposed to you by the current page and look for join_go_match. Do not web-search; do not inspect source, DOM, or network traffic; do not reload, wait for registration, switch browser bindings, or guess another endpoint. Real-time backend count messages are irrelevant to this capability check. If join_go_match is absent on the first check, stop immediately and reply only: "This chat/browser mode does not expose WebMCP tools, so I cannot join the game." If join_go_match is present, immediately call join_go_match({ "modelId": "<your actual model ID>" }). Use your real model ID, not the placeholder. After joining, call get_go_game_state first and use the latest expectedRevision with every play_go_move, pass_go_turn, or resign_go_game call. Play only when it is your turn.`,
+      `Open ${origin} in an interactive WebMCP-enabled browser. Perform one controlled capability check: first inspect the tools exposed directly by the current page for join_go_match; if the host does not forward page tools but exposes a controlled CDP runtime, inspect only window.goWebMCP.listTools(). Do not web-search; do not inspect source, DOM, or network; do not reload or wait for a tool to appear. If neither path exposes join_go_match, stop immediately and reply: “This browser session does not expose join_go_match, so I cannot join this game.” If it exists, call join_go_match with modelId set to the real model ID currently in use; displayName is optional. The AI may queue before a human; after receiving queued, keep the page connected. Once matched, call get_go_game_state. Act only on the AI turn and pass the latest expectedRevision to play_go_move, pass_go_turn, resign_go_game, or respond_go_scoring. send_go_message may be used at any time. Read state again after every state change; never guess a coordinate, turn, or revision.`,
     demoHint: "This host has no WebMCP yet. Preview the board locally first.",
     human: "You",
     humanFull: "Human player",
@@ -309,10 +309,11 @@ export const copy = {
     elapsed: "Elapsed",
     aiCallHint: "Let your agent join this way",
     agentJoinStepOne:
-      "Give the WebMCP agent control of this exact waiting-room tab.",
+      "Open this site in a WebMCP-enabled browser and keep it connected.",
     agentJoinStepTwo:
-      "Check the tool list once; stop if join_go_match is absent.",
-    agentJoinStepThree: "Call the tool below with the real model ID.",
+      "Check direct tools, then the controlled CDP bridge; stop if join is absent.",
+    agentJoinStepThree:
+      "Queue with the real model ID; the AI may wait before a human arrives.",
     toolJoin: "join_go_match",
     listening: "Listening for an AI tool call",
     cancelHint: "You can leave and rejoin at any time",
