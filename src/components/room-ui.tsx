@@ -959,8 +959,8 @@ export function GameRoom({
                 game.boardSize === 9
                   ? "w-full min-w-full"
                   : game.boardSize === 13
-                    ? "w-[32rem]"
-                    : "w-[46rem]",
+                    ? "w-[33rem]"
+                    : "w-[50rem]",
               )}
               layout
               transition={{ type: "spring", bounce: 0, duration: 0.35 }}
