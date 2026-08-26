@@ -1,0 +1,9 @@
+{
+  "name": "go.lmm.best",
+  "short_name": "Go LMM",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#151916",
+  "theme_color": "#151916",
+  "description": "Human vs AI Go through WebMCP"
+}
