@@ -92,6 +92,7 @@ function App() {
   const [elapsed, setElapsed] = useState(0);
   const [errorKey, setErrorKey] = useState<ErrorKey | null>(null);
   const [lastToolCall, setLastToolCall] = useState<string | null>(null);
+  const [waitingPreview, setWaitingPreview] = useState(false);
   const [danmakuEnabled, setDanmakuEnabled] = useState(
     () => localStorage.getItem("go-lmm-danmaku") === "on",
   );
@@ -180,6 +181,7 @@ function App() {
     setQueueStartedAt(null);
     setMatchMode("real");
     setLastToolCall(null);
+    setWaitingPreview(false);
     setErrorKey(null);
   }, [changeQueueSide, changeView, commitGame]);
 
@@ -187,6 +189,7 @@ function App() {
     changeQueueSide(null);
     changeView("setup");
     setQueueStartedAt(null);
+    setWaitingPreview(false);
     setErrorKey(null);
   }, [changeQueueSide, changeView]);
 
@@ -205,20 +208,16 @@ function App() {
     setErrorKey(null);
   }, [changeQueueSide, changeView, commitGame, matchHumanWithWaitingAi]);
 
-  const startDemo = useCallback(() => {
-    commitGame(createGame("demo/local"));
-    changeQueueSide(null);
-    changeView("playing");
-    setQueueStartedAt(null);
-    setMatchMode("demo");
-    setLastToolCall(null);
-    setErrorKey(null);
-  }, [changeQueueSide, changeView, commitGame]);
+  const previewWhileWaiting = useCallback(() => {
+    if (viewRef.current === "idle") startHumanQueue();
+    setWaitingPreview(true);
+  }, [startHumanQueue]);
 
   const startConfiguredGame = useCallback(
     (boardSize: BoardSize) => {
       commitGame(createGame(gameRef.current.aiModelId, boardSize));
       changeView("playing");
+      setWaitingPreview(false);
       setErrorKey(null);
     },
     [changeView, commitGame],
@@ -249,6 +248,7 @@ function App() {
         changeQueueSide(null);
         changeView("setup");
         setQueueStartedAt(null);
+        setWaitingPreview(false);
         setLastToolCall("join_go_match");
         return {
           ok: true,
@@ -496,7 +496,7 @@ function App() {
               webmcpStatus={webmcpStatus}
               population={population}
               onStartMatch={startHumanQueue}
-              onStartDemo={startDemo}
+              onPreviewBoard={previewWhileWaiting}
             />
           )}
           {view === "searching" && (
@@ -507,8 +507,10 @@ function App() {
               aiModelId={game.aiModelId}
               webmcpStatus={webmcpStatus}
               population={population}
+              showBoardPreview={waitingPreview}
               onCancel={resetRoom}
-              onStartDemo={startDemo}
+              onPreviewBoard={previewWhileWaiting}
+              onClosePreview={() => setWaitingPreview(false)}
               onJoinWaitingAi={matchHumanWithWaitingAi}
             />
           )}

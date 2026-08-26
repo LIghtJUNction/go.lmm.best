@@ -535,13 +535,13 @@ export function Lobby({
   webmcpStatus,
   population,
   onStartMatch,
-  onStartDemo,
+  onPreviewBoard,
 }: {
   t: Copy;
   webmcpStatus: WebMCPStatus;
   population: PopulationStats;
   onStartMatch: () => void;
-  onStartDemo: () => void;
+  onPreviewBoard: () => void;
 }) {
   return (
     <PageTransition
@@ -565,7 +565,7 @@ export function Lobby({
               <ArrowUpRightIcon data-icon="inline-end" />
             </Button>
             <AgentInviteButton t={t} />
-            <Button variant="ghost" size="lg" onClick={onStartDemo}>
+            <Button variant="ghost" size="lg" onClick={onPreviewBoard}>
               {t.viewDemo}
               <ArrowRightIcon data-icon="inline-end" />
             </Button>
@@ -684,8 +684,10 @@ export function Searching({
   aiModelId,
   webmcpStatus,
   population,
+  showBoardPreview,
   onCancel,
-  onStartDemo,
+  onPreviewBoard,
+  onClosePreview,
   onJoinWaitingAi,
 }: {
   t: Copy;
@@ -694,8 +696,10 @@ export function Searching({
   aiModelId: string | null;
   webmcpStatus: WebMCPStatus;
   population: PopulationStats;
+  showBoardPreview: boolean;
   onCancel: () => void;
-  onStartDemo: () => void;
+  onPreviewBoard: () => void;
+  onClosePreview: () => void;
   onJoinWaitingAi: () => void;
 }) {
   const reducedMotion = useReducedMotion();
@@ -752,7 +756,7 @@ export function Searching({
                 <XIcon data-icon="inline-end" />
               </Button>
               {!aiWaiting && (
-                <Button variant="ghost" onClick={onStartDemo}>
+                <Button variant="ghost" onClick={onPreviewBoard}>
                   {t.viewDemo}
                   <ArrowRightIcon data-icon="inline-end" />
                 </Button>
@@ -785,6 +789,15 @@ export function Searching({
             </Button>
             <WebMCPReadiness t={t} status={webmcpStatus} />
           </section>
+        ) : showBoardPreview ? (
+          <div className="flex flex-col gap-5">
+            <BoardPreview t={t} />
+            <Button variant="outline" onClick={onClosePreview}>
+              {t.closeBoardPreview}
+              <XIcon data-icon="inline-end" />
+            </Button>
+            <WebMCPReadiness t={t} status={webmcpStatus} />
+          </div>
         ) : (
           <section className="flex flex-col gap-6">
             <div className="flex items-start justify-between gap-4">

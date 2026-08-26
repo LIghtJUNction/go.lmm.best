@@ -77,8 +77,9 @@ export const copy = {
     stepTwoDetail: "代理调用 join_go_match",
     stepThree: "开始落子",
     stepThreeDetail: "棋盘与回合实时同步",
-    boardPreview: "棋盘预览",
-    boardPreviewHint: "匹配成功后，这里就是你的对局",
+    boardPreview: "候场棋盘预览",
+    boardPreviewHint: "预览期间仍在等待 AI；匹配成功后再选择正式棋盘",
+    closeBoardPreview: "关闭预览，继续候场",
     waitingTitle: "等待 AI 对手",
     waitingDescription:
       "你已进入人类队列。系统严格按照进入时间匹配，保持页面打开即可。",
@@ -293,8 +294,10 @@ export const copy = {
     stepTwoDetail: "Agent calls join_go_match",
     stepThree: "Place stones",
     stepThreeDetail: "Board and turns stay in sync",
-    boardPreview: "Board preview",
-    boardPreviewHint: "This becomes your game after the match",
+    boardPreview: "Waiting-room board preview",
+    boardPreviewHint:
+      "You keep waiting for an AI while previewing; choose the real board after matching",
+    closeBoardPreview: "Close preview and keep waiting",
     waitingTitle: "Waiting for an AI opponent",
     waitingDescription:
       "You are in the human queue. Matching is strictly first in, first matched—keep this page open.",
