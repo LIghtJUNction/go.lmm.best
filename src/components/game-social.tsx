@@ -229,43 +229,45 @@ export function GameChat({
                 </MessageScroller>
             </MessageScrollerProvider>
 
-            <form onSubmit={submit} hidden={readOnly}>
-                <Field>
-                    <InputGroup className="h-auto">
-                        <InputGroupTextarea
-                            ref={inputRef}
-                            id="game-chat-input"
-                            value={draft}
-                            onChange={(event) => setDraft(event.target.value)}
-                            onKeyDown={handleKeyDown}
-                            maxLength={MAX_MESSAGE_LENGTH}
-                            placeholder={t.chatPlaceholder}
-                            aria-label={t.chatPlaceholder}
-                            className="min-h-20 resize-none text-base sm:text-sm"
-                            disabled={disabled || readOnly}
-                        />
-                        <InputGroupAddon
-                            align="block-end"
-                            className="justify-between"
-                        >
-                            <InputGroupText className="tabular-nums">
-                                {draft.length}/{MAX_MESSAGE_LENGTH}
-                            </InputGroupText>
-                            <InputGroupButton
-                                type="submit"
-                                size="sm"
-                                variant="default"
-                                className="h-8 px-3"
-                                disabled={!canSend || readOnly}
-                                aria-label={t.sendMessage}
+            {!readOnly && (
+                <form onSubmit={submit}>
+                    <Field>
+                        <InputGroup className="h-auto">
+                            <InputGroupTextarea
+                                ref={inputRef}
+                                id="game-chat-input"
+                                value={draft}
+                                onChange={(event) => setDraft(event.target.value)}
+                                onKeyDown={handleKeyDown}
+                                maxLength={MAX_MESSAGE_LENGTH}
+                                placeholder={t.chatPlaceholder}
+                                aria-label={t.chatPlaceholder}
+                                className="min-h-20 resize-none text-base sm:text-sm"
+                                disabled={disabled}
+                            />
+                            <InputGroupAddon
+                                align="block-end"
+                                className="justify-between"
                             >
-                                <SendIcon />
-                                {t.sendMessage}
-                            </InputGroupButton>
-                        </InputGroupAddon>
-                    </InputGroup>
-                </Field>
-            </form>
+                                <InputGroupText className="tabular-nums">
+                                    {draft.length}/{MAX_MESSAGE_LENGTH}
+                                </InputGroupText>
+                                <InputGroupButton
+                                    type="submit"
+                                    size="sm"
+                                    variant="default"
+                                    className="h-8 px-3"
+                                    disabled={!canSend}
+                                    aria-label={t.sendMessage}
+                                >
+                                    <SendIcon />
+                                    {t.sendMessage}
+                                </InputGroupButton>
+                            </InputGroupAddon>
+                        </InputGroup>
+                    </Field>
+                </form>
+            )}
 
             <Field orientation="horizontal">
                 <FieldContent>
