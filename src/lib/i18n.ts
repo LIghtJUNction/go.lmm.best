@@ -22,9 +22,9 @@ export const copy = {
     switchToDark: "切换到暗色模式",
     switchToLight: "切换到亮色模式",
     copyAgentInviteHint:
-      "AI 可以在支持 WebMCP 的浏览器中先行入队；保持页面连接，后端会跨会话按 FIFO 匹配。",
+      "当前基础版需让 AI 控制这个页面；AI 可以先入队，人类随后在同一页面加入。",
     agentInvitePrompt: (origin: string) =>
-      `请在支持 WebMCP 的交互式浏览器中打开 ${origin}。只做一次受控能力检查：先查看当前页面直接暴露的工具，寻找 join_go_match；如果宿主没有直接转发页面工具，但提供受控 CDP 运行时，则仅检查 window.goWebMCP.listTools()。不要搜索网页，不要检查源码、DOM 或网络，也不要刷新或等待工具出现。如果两条路径都没有 join_go_match，立即停止并回复：“当前浏览器会话没有暴露 join_go_match，因此我无法加入这局游戏。”如果存在，调用 join_go_match，并把 modelId 设为当前真实模型 ID；可选传 displayName。AI 可以在人类之前入队；收到 queued 后保持页面连接。匹配后调用 get_go_game_state。仅在轮到 AI 时行动，并为 play_go_move、pass_go_turn、resign_go_game 或 respond_go_scoring 传入最新 expectedRevision；可随时用 send_go_message 发言。每次状态改变后重新读取状态，绝不猜测坐标、轮次或 revision。`,
+      `请在支持 WebMCP 的交互式浏览器中控制 ${origin} 当前这个页面。当前基础版的对局状态保存在此页面，不要改用另一个标签页、浏览器或设备。只做一次受控能力检查：先查看当前页面直接暴露的工具，寻找 join_go_match；如果宿主没有直接转发页面工具，但提供受控 CDP 运行时，则仅检查 window.goWebMCP.listTools()。不要搜索网页，不要检查源码、DOM 或网络，也不要刷新或等待工具出现。如果两条路径都没有 join_go_match，立即停止并回复：“当前浏览器会话没有暴露 join_go_match，因此我无法加入这局游戏。”如果存在，调用 join_go_match，并把 modelId 设为当前真实模型 ID；可选传 displayName。AI 可以在人类之前入队；随后人类可在同一页面加入。匹配后调用 get_go_game_state。仅在轮到 AI 时行动，并为 play_go_move、pass_go_turn、resign_go_game 或 respond_go_scoring 传入最新 expectedRevision；可随时用 send_go_message 发言。每次状态改变后重新读取状态，绝不猜测坐标、轮次或 revision。`,
     demoHint: "当前宿主未暴露 WebMCP，可先预览对局界面。",
     human: "你",
     humanFull: "人类玩家",
@@ -68,7 +68,7 @@ export const copy = {
     waitingAiCount: (count: number) => `${count} 个 AI 等待人类`,
     queuesBalanced: "当前无人等待",
     matchMode: "9×9 · 13×13 · 19×19",
-    noAccount: "仅支持 Passkey",
+    noAccount: "基础版无需账号",
     liveTools: "7 个实时工具",
     matchStepsTitle: "一场对局只需要三步",
     stepOne: "点击入场",
@@ -231,9 +231,9 @@ export const copy = {
     switchToDark: "Switch to dark mode",
     switchToLight: "Switch to light mode",
     copyAgentInviteHint:
-      "The AI may queue first in any WebMCP-enabled browser; keep it connected and the backend will match sessions by FIFO.",
+      "In this basic release, let the AI control this page. It may queue first, then a human can join on the same page.",
     agentInvitePrompt: (origin: string) =>
-      `Open ${origin} in an interactive WebMCP-enabled browser. Perform one controlled capability check: first inspect the tools exposed directly by the current page for join_go_match; if the host does not forward page tools but exposes a controlled CDP runtime, inspect only window.goWebMCP.listTools(). Do not web-search; do not inspect source, DOM, or network; do not reload or wait for a tool to appear. If neither path exposes join_go_match, stop immediately and reply: “This browser session does not expose join_go_match, so I cannot join this game.” If it exists, call join_go_match with modelId set to the real model ID currently in use; displayName is optional. The AI may queue before a human; after receiving queued, keep the page connected. Once matched, call get_go_game_state. Act only on the AI turn and pass the latest expectedRevision to play_go_move, pass_go_turn, resign_go_game, or respond_go_scoring. send_go_message may be used at any time. Read state again after every state change; never guess a coordinate, turn, or revision.`,
+      `Control the current ${origin} page in an interactive WebMCP-enabled browser. This basic release keeps the game state in this page; do not switch to another tab, browser, or device. Perform one controlled capability check: first inspect the tools exposed directly by the current page for join_go_match; if the host does not forward page tools but exposes a controlled CDP runtime, inspect only window.goWebMCP.listTools(). Do not web-search; do not inspect source, DOM, or network; do not reload or wait for a tool to appear. If neither path exposes join_go_match, stop immediately and reply: “This browser session does not expose join_go_match, so I cannot join this game.” If it exists, call join_go_match with modelId set to the real model ID currently in use; displayName is optional. The AI may queue before a human, who can then join on the same page. Once matched, call get_go_game_state. Act only on the AI turn and pass the latest expectedRevision to play_go_move, pass_go_turn, resign_go_game, or respond_go_scoring. send_go_message may be used at any time. Read state again after every state change; never guess a coordinate, turn, or revision.`,
     demoHint: "This host has no WebMCP yet. Preview the board locally first.",
     human: "You",
     humanFull: "Human player",
@@ -284,7 +284,7 @@ export const copy = {
       `${count} AI agent${count === 1 ? "" : "s"} waiting for a human`,
     queuesBalanced: "No one is waiting",
     matchMode: "9×9 · 13×13 · 19×19",
-    noAccount: "Passkey only",
+    noAccount: "No account in the basic release",
     liveTools: "7 live tools",
     matchStepsTitle: "Three steps to a game",
     stepOne: "Take a seat",

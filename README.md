@@ -1,243 +1,134 @@
-# Human vs. AI Go, Powered by WebMCP
+# go.lmm.best
 
-![go.lmm.best — Human versus AI Go through WebMCP](public/og-cover.png)
+[![Live app](https://img.shields.io/badge/live-go.lmm.best-2f775d)](https://go.lmm.best)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-[go.lmm.best](https://go.lmm.best) is a bilingual, browser-based 9×9 Go room where a person and an AI share one rule-controlled game state through two different interfaces:
+A human plays Go through the board. An AI joins and plays through WebMCP tools exposed by the same page.
 
-- the human joins and places stones through the visible interface;
-- the AI joins, reads the board, and submits moves through WebMCP tools.
+**Live:** [https://go.lmm.best](https://go.lmm.best)
 
-The service requires no account, login, or registration. The default interface language is English, and a complete Chinese translation remains available from the language switch.
+**Source:** [https://github.com/LIghtJUNction/go.lmm.best](https://github.com/LIghtJUNction/go.lmm.best)
 
-## Inspiration
+![Human vs. AI Go room](public/og-cover.png)
 
-Go has extremely simple rules, yet every move can change the direction of the entire game. That contrast made it an ideal environment for exploring a larger question:
+## Why WebMCP fits
 
-> What happens when an AI does not merely generate an answer, but directly participates in an interactive application?
+A Go opponent needs more than a chat box. The agent must inspect an exact board state, act only on its turn, submit a legal coordinate, and avoid replaying a stale action. WebMCP gives the page a small typed interface for those jobs.
 
-Most AI board-game demos hide the interaction behind a traditional backend API. The AI receives a board state, returns a coordinate, and the application handles everything else. This project makes that interaction explicit. The human places stones naturally by clicking the board, while the AI observes the same game and makes its own moves through narrow, structured WebMCP tools.
+The human keeps the visual board and familiar controls. The AI gets structured state and rule-checked actions instead of scraping text or guessing which DOM node represents an intersection. Both interfaces operate on one revisioned game state.
 
-The result is a shared digital environment where a human and an AI interact with one authoritative game state through different interfaces.
+This lets a person and an agent share an interactive browser game without a custom agent plugin or a private integration. The page itself describes the available actions.
 
-## What the Project Does
+## Play the current release
 
-1. The human clicks **Join the human queue** and enters the room.
-2. The human can press **Copy invite for your AI** and paste one complete, bilingual-aware WebMCP instruction into the AI chat.
-3. The AI agent follows that instruction and calls `join_go_match` through WebMCP.
-4. The human plays Black by clicking an empty intersection.
-5. The AI reads the latest state and revision with `get_go_game_state`.
-6. The AI chooses a move and calls `play_go_move` with that revision.
-7. The rule engine validates the action, updates captures and turn order, and React renders the new position.
+1. Open [go.lmm.best](https://go.lmm.best) in ChatGPT's in-app browser or Chrome 149+ with `chrome://flags/#enable-webmcp-testing` enabled.
+2. Let the AI inspect the page tools and call `join_go_match` with its real `modelId`. The AI may enter the queue first.
+3. Join from the visible human control on the same page.
+4. Choose 9×9, 13×13, or 19×19 and start the game.
+5. The human uses the board. The AI calls `get_go_game_state` before each revision-checked action.
 
-Neither participant can directly mutate the board. Every action goes through the same rule engine.
+The basic release stores its queue and game in the current page. Keep that page open. Cross-browser matchmaking, optional Passkey identity, and recovery are follow-up work and are not presented as live features.
 
-Conceptually, each accepted action follows:
+## What humans and agents can do
 
-$$
-S_{t+1} = T(S_t, a_t)
-$$
+- Either participant may enter the page-local FIFO queue first.
+- The human chooses the board size after matching.
+- Both sides can place stones, pass, resign, and exchange short messages.
+- The human may request scoring; the AI can accept or reject with the current revision.
+- Accepted scoring uses Chinese-style area scoring with 7.5 komi.
+- Optional board comments are off by default.
+- The interface supports English, Chinese, light mode, dark mode, reduced motion, keyboard controls, and mobile board panning.
 
-where:
+## WebMCP tools
 
-- $S_t$ is the current board state;
-- $a_t$ is the human or AI action;
-- $T$ is the rule engine that validates and applies the action.
-
-A move is accepted only when:
-
-$$
-a_t \in A(S_t)
-$$
-
-where $A(S_t)$ is the set of legal actions for the current position and revision.
-
-## WebMCP Tools
-
-The current implementation uses the imperative WebMCP API at `document.modelContext.registerTool()`. An early-preview `navigator.modelContext` fallback is retained for older hosts.
-
-| Tool | Purpose | Important input |
+| Tool | Purpose | Main input |
 | --- | --- | --- |
-| `join_go_match` | Join the oldest waiting human and begin the game | required `modelId`; optional AI display name |
-| `get_go_game_state` | Read room status, board, turn, captures, moves, position hash, and revision | none |
-| `play_go_move` | Submit a legal AI move | `coordinate` or `x`/`y`, plus `expectedRevision` |
-| `pass_go_turn` | Pass the AI turn | `expectedRevision` |
-| `resign_go_game` | End the game by AI resignation | `expectedRevision` |
+| `join_go_match` | Join as the AI, including before a human arrives | `modelId`, optional `displayName` |
+| `get_go_game_state` | Read board, turn, score state, and revision | none |
+| `play_go_move` | Place one stone | `coordinate`, `expectedRevision` |
+| `pass_go_turn` | Pass | `expectedRevision` |
+| `resign_go_game` | Resign | `expectedRevision` |
+| `respond_go_scoring` | Accept or reject a human scoring request | `decision`, `expectedRevision` |
+| `send_go_message` | Send a bounded in-game message | `message` |
 
-Example AI loop:
+Every state-changing game action passes through the same rules used by the visible board. Occupied points, suicide, repeated positions, wrong turns, invalid coordinates, and stale revisions return structured errors.
 
-```text
-join_go_match({ modelId: "openai/gpt-5", displayName: "WebMCP AI" })
-        ↓
-get_go_game_state()
-        ↓
-reason about the returned 9×9 board
-        ↓
-play_go_move({ coordinate: "E6", expectedRevision: 11 })
-        ↓
-read the structured tool result
+## WebMCP implementation
+
+The production implementation lives in [`src/lib/webmcp.ts`](src/lib/webmcp.ts). It feature-detects the current API, registers all seven tools, and falls back to the early `navigator.modelContext` location when needed. A controlled `window.goWebMCP` bridge exposes only `listTools()` and `callTool()` for browser hosts that provide CDP but do not forward native page tools.
+
+The core registration shape required by the WebMCP Challenge is:
+
+```ts
+document.modelContext.registerTool({
+  name: "join_go_match",
+  description: "Join the Go matchmaking queue as the AI player.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      modelId: { type: "string" },
+      displayName: { type: "string" },
+    },
+    required: ["modelId"],
+    additionalProperties: false,
+  },
+  execute: async (input) => joinMatch(input),
+});
 ```
 
-The revision check prevents a tool call based on an older position from being applied after the human or another action has already advanced the game. `modelId` is mandatory when an AI joins and is shown to the human opponent throughout the match.
+The source builds equivalent tool objects in `createTools()` and registers them with an `AbortSignal`, so React cleanup cannot leave duplicate tools behind.
 
-## Enable WebMCP
-
-Use either of these paths before joining a real match:
-
-### ChatGPT app
-
-1. Open the ChatGPT app.
-2. Open `https://go.lmm.best` with its built-in browser.
-3. Ask your agent to inspect the WebMCP tools exposed by the page.
-4. After the human enters matchmaking, have the agent call `join_go_match` with its real `modelId`.
-
-### Chromium-based browser
-
-1. Open `chrome://flags/#enable-webmcp-testing`.
-2. Set **WebMCP testing** to **Enabled**.
-3. Relaunch the browser.
-4. Open `https://go.lmm.best`, let the page expose its WebMCP tools, and have the agent call `join_go_match` with its real `modelId`.
-
-The AI must not invent or omit the model identifier. A join request without a non-empty `modelId` is rejected. The lobby and waiting room provide a copy button that includes the current origin, exact join call, state tool, and revision rules so the AI does not need to rediscover the integration contract. The copied instruction also requires one capability check only: if `join_go_match` is absent, the agent must stop and report unsupported WebMCP instead of searching, inspecting source, reloading, waiting, or switching browser bindings.
-
-## Architecture
-
-```text
-src/
-├── App.tsx                    matchmaking state and WebMCP callbacks
-├── components/
-│   ├── room-ui.tsx            composed lobby, waiting, and game surfaces
-│   └── ui/                    shadcn/Base UI primitives
-├── lib/
-│   ├── go.ts                  pure Go rules and position serialization
-│   ├── go.test.ts             capture, liberty, suicide, repetition, and bounds tests
-│   ├── i18n.ts                complete English and Chinese product copy
-│   └── webmcp.ts              capability detection, schemas, and tool registration
-├── board.css                  board-only domain rendering
-├── index.css                  Tailwind theme tokens and global base layer
-└── main.tsx                   React entry point and fonts
-```
-
-### Interactive Go Board
-
-The board converts pointer or keyboard activation into internal zero-based coordinates. It displays:
-
-- empty intersections;
-- black and white stones;
-- the latest move marker;
-- captured-stone counts;
-- the current player;
-- pass, resign, and invalid-move feedback.
-
-The visual board never owns the rules. It requests an action and renders the resulting `GameState`.
-
-The surrounding interface is composed from shadcn/Base UI primitives and Tailwind semantic tokens. Motion supplies reduced-motion-aware spring transitions. Custom CSS is limited to the Go grid, coordinates, stones, and placement feedback in `board.css`.
-
-### Go Rule Engine
-
-`src/lib/go.ts` is the source of truth for move legality. It handles:
-
-- turn enforcement at the room layer;
-- occupied and out-of-bounds intersections;
-- connected-group traversal;
-- unique liberty calculation;
-- captured-group removal;
-- self-capture prevention;
-- repeated-position prevention through positional hashes;
-- pass and resign flow at the room layer.
-
-The current prototype ends after consecutive passes but does not yet adjudicate territory. Production scoring and SGF-grade rules remain roadmap work.
-
-### AI Interaction Layer
-
-`src/lib/webmcp.ts` exposes only the capabilities an agent needs. Inputs use JSON Schema, read-only state inspection is annotated, and all tool registrations share an `AbortSignal` so React can cleanly unregister them.
-
-The AI cannot click arbitrary DOM nodes, rewrite React state, or bypass the rule engine. Malformed coordinates, stale revisions, wrong-turn actions, occupied points, suicide, and repeated positions return structured failures without freezing the room.
-
-## Running Locally
+## Run locally
 
 Requirements:
 
 - Node.js 22+
-- npm 12+
-- a WebMCP-capable browser or host for real AI tool calls
+- npm 10+
 
 ```bash
+git clone https://github.com/LIghtJUNction/go.lmm.best.git
+cd go.lmm.best
 npm install
 npm run dev
 ```
 
-Open the local URL printed by Vite. The room includes a local board preview when WebMCP is unavailable, but a real AI match requires a host that exposes WebMCP in a secure context.
+Open the printed local URL. Native WebMCP requires a compatible browser host. The controlled bridge remains available for local CDP testing.
 
-## Quality Checks
+## Test and build
 
 ```bash
 npm test
 npm run build
-# or both
 npm run check
 ```
 
-## Deployment
+`npm run check` runs Vitest, TypeScript, the Vite production build, and static precompression. The generated static site is in `dist/`.
 
-Production is served from `DmitUbuntu` behind Nginx at:
+Before a release, test both languages and themes at desktop and 390px mobile widths. Verify the direct WebMCP tool list in ChatGPT's in-app browser or Chrome 149+, then complete one move and one revision failure against the deployed URL.
+
+## Project map
 
 ```text
-https://go.lmm.best
+src/
+├── App.tsx                    # room coordinator and WebMCP callbacks
+├── board.css                 # responsive Go board geometry
+├── components/
+│   ├── room-ui.tsx           # lobby, queue, setup, and room views
+│   ├── game-social.tsx       # messages, comments, scoring, actions
+│   └── match-setup.tsx       # board and color selection
+└── lib/
+    ├── go.ts                  # captures, legality, repetition, area score
+    ├── session.ts             # revisioned game transitions
+    ├── webmcp.ts              # seven WebMCP tools and controlled bridge
+    └── i18n.ts                # complete English and Chinese copy
 ```
 
-GitHub is the source repository, not the hosting platform. The current frontend is deployed as versioned static releases behind a `current` symlink. Future matchmaking and game-state APIs can be added behind the same Nginx entry point without introducing login or registration. WebMCP requires the production HTTPS origin.
+The repository also contains work toward optional Passkey identity and a persistent real-time service. Guests will continue to play without an account; Passkey will be the only account method for players who want recovery. Those modules stay outside the live flow until their server integration and recovery tests pass.
 
-## Challenges
+## Challenge submission assets
 
-### Keeping the AI and Interface Synchronized
+The submission description and a sub-three-minute demo plan live in [`docs/challenge-submission.md`](docs/challenge-submission.md). The public YouTube upload requires the maintainer's account; the document supplies the exact shots and narration.
 
-The human interface and AI tool calls are asynchronous. Every game action carries or checks the latest revision, so an AI cannot silently apply a move based on an older board. On failure, it receives the current revision and can read state again.
+## License
 
-### Implementing Go Rules Safely
-
-Go looks simple until groups, liberties, captures, suicide, and repeated positions appear. The board is modeled as a graph: each stone is a node connected to orthogonal neighbors, and traversal determines group membership and liberties before a move is committed.
-
-### Designing Tools for an AI
-
-Broad page access would be easy but unreliable. The project instead exposes a small interface with explicit inputs, outputs, and failure modes. The AI only needs a stable board representation and a safe action boundary.
-
-### Coordinate Conversion
-
-The rule engine uses one zero-based coordinate system. Human-readable coordinates such as `D4` are converted only at the WebMCP boundary, preventing screen positions, array indexes, and protocol notation from leaking into one another.
-
-### Recovering from Failed AI Actions
-
-An AI may submit malformed parameters, choose an illegal move, act out of turn, or use stale state. The tool returns a structured reason; the game remains playable, and the AI can retrieve the latest state before trying again.
-
-## What This Demonstrates
-
-AI becomes more useful when it can participate in a structured environment instead of only exchanging text. WebMCP lets the application expose meaningful capabilities while the game engine remains in control.
-
-Tool design matters as much as model intelligence. A narrow, predictable capability boundary produces safer and more understandable behavior than unrestricted access to application internals.
-
-Most importantly, AI actions are treated as untrusted external input and validated as carefully as human actions.
-
-## Current Scope
-
-- One in-memory 9×9 room
-- Human plays Black; WebMCP AI plays White
-- Capture, liberty, suicide, positional repetition, pass, and resign handling
-- English default plus complete Chinese translation
-- Responsive desktop and mobile UI
-- No account, login, or registration required
-
-Reloading the page currently resets the room. Persistent matchmaking, clocks, scoring, spectators, and anti-cheat require a backend contract and are intentionally outside this first prototype. Authentication is not part of the product direction.
-
-## Next
-
-- 13×13 and 19×19 boards
-- Territory scoring and full ko/superko policy
-- Move history and SGF import/export
-- Replay and position analysis
-- Suggested moves for beginners
-- Timed matches and spectator mode
-- Multiple rooms backed by a server
-- Human-versus-human and AI-versus-AI modes
-- Richer AI analysis and teaching tools
-
-The long-term goal is both a playable online Go room and a practical example of safe human–AI interaction through WebMCP.
+[MIT](LICENSE) © 2026 LIghtJUNction

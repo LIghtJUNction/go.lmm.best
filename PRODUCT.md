@@ -8,7 +8,7 @@ web
 
 ## Stack
 
-Vite + React + TypeScript frontend behind `go.lmm.best`, plus a same-origin backend compiled as a standalone Bun executable. SQLite persists Passkey credentials, sessions, queues, games, messages, and revisions for the current single-node deployment.
+The current playable release is a Vite + React + TypeScript static frontend behind `go.lmm.best`. A same-origin Bun/SQLite backend, Passkey identity, persistent queues, and recovery exist as follow-up development work and are not claimed as deployed.
 
 ## Users
 
@@ -17,7 +17,7 @@ Vite + React + TypeScript frontend behind `go.lmm.best`, plus a same-origin back
 
 ## Product Purpose
 
-`go.lmm.best` creates a persistent shared Go room between a person and an AI agent. Success means the human can authenticate with a Passkey, either participant can enter matchmaking first, the AI can discover and call the WebMCP tools, and both can resume and complete an honest, visible game.
+`go.lmm.best` creates a shared Go room between a person and an AI agent. Success in the basic release means either participant can enter the page-local queue first, the AI can discover and call the WebMCP tools, and both can complete an honest, visible game.
 
 ## Positioning
 
@@ -27,19 +27,18 @@ The match is not a conventional human-versus-bot widget: the human enters throug
 
 - The human keeps the browser room open while waiting for an agent.
 - The agent calls `join_go_match` with its real `modelId`, then reads state, plays coordinates, passes, or resigns through WebMCP.
-- Matchmaking is strict FIFO within separate human and AI queues. The backend publishes both queue-side population counts in real time.
+- The basic release models separate human and AI FIFO queues inside one open page; it labels counts as local until a real-time backend is connected.
 - After matching, the human chooses a 9×9, 13×13, or 19×19 board before the game starts.
-- Queues, presence, messages, game revisions, and recoverable sessions are authoritative on the backend.
+- The page must remain open for the basic release. Cross-browser queues and recovery belong to the backend follow-up.
 - English is the default public product language; Chinese remains available through the language switch.
 
 ## Capabilities and Constraints
 
 - Domain: `go.lmm.best`.
-- Human accounts use WebAuthn Passkeys exclusively. Passwords, email/SMS codes, and OAuth are not offered.
-- Visitors may inspect the lobby, but joining a persistent human queue requires a Passkey session.
+- Guests can play without an account. Optional persistent identity will use WebAuthn Passkeys as its only registration and login method; passwords, codes, and OAuth remain excluded.
 - AI matchmaking and game actions use WebMCP tools; `join_go_match` rejects calls without a non-empty `modelId`.
-- Humans and AIs have separate strict FIFO queues. Either side may wait first; the oldest compatible entries match atomically.
-- Published population counts come from backend queue, presence, and active-game state rather than fabricated client numbers.
+- Humans and AIs have separate FIFO queue roles. Either side may wait first inside the current page.
+- The interface distinguishes local counts from future site-wide backend counts.
 - Rules cover alternating turns, capture, suicide and repetition prevention, pass, resign, and Chinese-style area scoring with 7.5 komi on 9×9, 13×13, and 19×19 boards.
 - Players may exchange bounded messages. Board-overlay comments remain off by default and can be disabled at any time.
 - WebMCP capability must be feature-detected; native WebMCP and the controlled CDP compatibility bridge must be distinguished honestly.
@@ -64,8 +63,8 @@ The match is not a conventional human-versus-bot widget: the human enters throug
 3. Report tool availability and failure states honestly.
 4. Preserve one shared game state across UI and WebMCP calls.
 5. Match strictly by arrival time; never rank or weight participants by model or difficulty.
-6. Require revision checks and server-side validation for every state-changing action.
-7. Keep authentication Passkey-only and never introduce fallback secrets.
+6. Require revision checks for every WebMCP state-changing action.
+7. Keep Passkey identity optional for play while making it the only account method.
 
 ## Accessibility & Inclusion
 
