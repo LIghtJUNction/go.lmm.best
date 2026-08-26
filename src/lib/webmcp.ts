@@ -1,169 +1,245 @@
-import type { Point } from './go.js'
+import type { Point } from "./go.js";
 
-export type WebMCPStatus = 'available' | 'unsupported'
+export type WebMCPStatus = "available" | "unsupported";
 
-type ToolHandler = (input: unknown) => unknown | Promise<unknown>
+type ToolHandler = (input: unknown) => unknown | Promise<unknown>;
 
 type WebMCPTool = {
-  name: string
-  description: string
-  inputSchema: Record<string, unknown>
-  execute: ToolHandler
+  name: string;
+  description: string;
+  inputSchema: Record<string, unknown>;
+  execute: ToolHandler;
   annotations?: {
-    readOnlyHint?: boolean
-  }
-}
+    readOnlyHint?: boolean;
+  };
+};
 
 type WebMCPModelContext = {
-  registerTool?: (tool: WebMCPTool, options?: { signal?: AbortSignal }) => void | Promise<void>
-}
+  registerTool?: (
+    tool: WebMCPTool,
+    options?: { signal?: AbortSignal },
+  ) => void | Promise<void>;
+};
 
 type DocumentWithModelContext = Document & {
-  modelContext?: WebMCPModelContext
-}
+  modelContext?: WebMCPModelContext;
+};
 
 type NavigatorWithModelContext = Navigator & {
-  modelContext?: WebMCPModelContext
-}
+  modelContext?: WebMCPModelContext;
+};
 
 export type WebMCPCallbacks = {
-  joinMatch: (input: { displayName?: string }) => unknown | Promise<unknown>
-  getGameState: () => unknown | Promise<unknown>
-  playMove: (point: Point, expectedRevision: number) => unknown | Promise<unknown>
-  passTurn: (expectedRevision: number) => unknown | Promise<unknown>
-  resignGame: (expectedRevision: number) => unknown | Promise<unknown>
-}
+  joinMatch: (input: {
+    modelId: string;
+    displayName?: string;
+  }) => unknown | Promise<unknown>;
+  getGameState: () => unknown | Promise<unknown>;
+  playMove: (
+    point: Point,
+    expectedRevision: number,
+  ) => unknown | Promise<unknown>;
+  passTurn: (expectedRevision: number) => unknown | Promise<unknown>;
+  resignGame: (expectedRevision: number) => unknown | Promise<unknown>;
+};
 
 function getModelContext(): WebMCPModelContext | undefined {
-  if (typeof document !== 'undefined') {
-    const currentApi = (document as DocumentWithModelContext).modelContext
-    if (currentApi) return currentApi
+  if (typeof document !== "undefined") {
+    const currentApi = (document as DocumentWithModelContext).modelContext;
+    if (currentApi) return currentApi;
   }
 
   // Older early-preview builds exposed the API on navigator.
-  if (typeof navigator !== 'undefined') return (navigator as NavigatorWithModelContext).modelContext
-  return undefined
+  if (typeof navigator !== "undefined")
+    return (navigator as NavigatorWithModelContext).modelContext;
+  return undefined;
 }
 
 function asRecord(input: unknown): Record<string, unknown> {
-  return typeof input === 'object' && input !== null ? (input as Record<string, unknown>) : {}
+  return typeof input === "object" && input !== null
+    ? (input as Record<string, unknown>)
+    : {};
 }
 
 function parsePoint(input: unknown): Point | null {
-  const values = asRecord(input)
-  const x = values.x
-  const y = values.y
-  if (typeof x === 'number' && Number.isInteger(x) && typeof y === 'number' && Number.isInteger(y)) {
-    return { x, y }
+  const values = asRecord(input);
+  const x = values.x;
+  const y = values.y;
+  if (
+    typeof x === "number" &&
+    Number.isInteger(x) &&
+    typeof y === "number" &&
+    Number.isInteger(y)
+  ) {
+    return { x, y };
   }
 
-  const coordinate = values.coordinate
-  if (typeof coordinate === 'string') {
-    const match = coordinate.trim().toUpperCase().match(/^([A-I])\s*([1-9])$/)
+  const coordinate = values.coordinate;
+  if (typeof coordinate === "string") {
+    const match = coordinate
+      .trim()
+      .toUpperCase()
+      .match(/^([A-I])\s*([1-9])$/);
     if (match) {
-      return { x: match[1].charCodeAt(0) - 65, y: Number(match[2]) - 1 }
+      return { x: match[1].charCodeAt(0) - 65, y: Number(match[2]) - 1 };
     }
   }
 
-  return null
+  return null;
 }
 
 function parseRevision(input: unknown): number | null {
-  const revision = asRecord(input).expectedRevision
-  return typeof revision === 'number' && Number.isInteger(revision) && revision >= 0 ? revision : null
+  const revision = asRecord(input).expectedRevision;
+  return typeof revision === "number" &&
+    Number.isInteger(revision) &&
+    revision >= 0
+    ? revision
+    : null;
 }
 
-function toolSchema(properties: Record<string, unknown> = {}, required: string[] = []) {
+function toolSchema(
+  properties: Record<string, unknown> = {},
+  required: string[] = [],
+) {
   return {
-    type: 'object',
+    type: "object",
     properties,
     required,
     additionalProperties: false,
-  }
+  };
 }
 
-export function registerWebMCPTools(callbacks: WebMCPCallbacks, onStatus: (status: WebMCPStatus) => void): () => void {
-  const modelContext = getModelContext()
-  const registerTool = modelContext?.registerTool?.bind(modelContext)
+export function registerWebMCPTools(
+  callbacks: WebMCPCallbacks,
+  onStatus: (status: WebMCPStatus) => void,
+): () => void {
+  const modelContext = getModelContext();
+  const registerTool = modelContext?.registerTool?.bind(modelContext);
   if (!registerTool) {
-    onStatus('unsupported')
-    return () => undefined
+    onStatus("unsupported");
+    return () => undefined;
   }
 
-  onStatus('available')
+  onStatus("available");
   const tools: WebMCPTool[] = [
     {
-      name: 'join_go_match',
-      description: 'Join the open human-vs-AI Go room. The human must already be waiting.',
-      inputSchema: toolSchema({
-        displayName: { type: 'string', description: 'Optional name shown in the room. The AI plays White in this prototype.' },
-      }),
+      name: "join_go_match",
+      description:
+        "Join the open human-vs-AI Go room. The human must already be waiting. modelId is required and shown to the opponent.",
+      inputSchema: toolSchema(
+        {
+          modelId: {
+            type: "string",
+            minLength: 1,
+            maxLength: 120,
+            description:
+              "Required model identifier, for example openai/gpt-5 or anthropic/claude-sonnet-4.",
+          },
+          displayName: {
+            type: "string",
+            maxLength: 80,
+            description:
+              "Optional agent name. The AI plays White in this prototype.",
+          },
+        },
+        ["modelId"],
+      ),
       execute: async (input) => {
-        const values = asRecord(input)
+        const values = asRecord(input);
+        const modelId =
+          typeof values.modelId === "string" ? values.modelId.trim() : "";
+        if (!modelId) return { ok: false, error: "model_id_required" };
         return callbacks.joinMatch({
-          displayName: typeof values.displayName === 'string' ? values.displayName : undefined,
-        })
+          modelId,
+          displayName:
+            typeof values.displayName === "string"
+              ? values.displayName.trim() || undefined
+              : undefined,
+        });
       },
     },
     {
-      name: 'get_go_game_state',
-      description: 'Read the current Go board, revision, turn, captures, move log, and room status before taking an action.',
+      name: "get_go_game_state",
+      description:
+        "Read the current Go board, revision, turn, captures, move log, and room status before taking an action.",
       inputSchema: toolSchema(),
       execute: () => callbacks.getGameState(),
       annotations: { readOnlyHint: true },
     },
     {
-      name: 'play_go_move',
-      description: 'Play a legal move for the AI on the 9x9 Go board. Read state first, then send its revision with x/y or coordinate A1-I9.',
+      name: "play_go_move",
+      description:
+        "Play a legal move for the AI on the 9x9 Go board. Read state first, then send its revision with x/y or coordinate A1-I9.",
       inputSchema: toolSchema(
         {
-          x: { type: 'integer', minimum: 0, maximum: 8 },
-          y: { type: 'integer', minimum: 0, maximum: 8 },
-          coordinate: { type: 'string', description: 'Alternative coordinate such as D4.' },
-          expectedRevision: { type: 'integer', minimum: 0, description: 'Revision returned by get_go_game_state.' },
+          x: { type: "integer", minimum: 0, maximum: 8 },
+          y: { type: "integer", minimum: 0, maximum: 8 },
+          coordinate: {
+            type: "string",
+            description: "Alternative coordinate such as D4.",
+          },
+          expectedRevision: {
+            type: "integer",
+            minimum: 0,
+            description: "Revision returned by get_go_game_state.",
+          },
         },
-        ['expectedRevision'],
+        ["expectedRevision"],
       ),
       execute: (input) => {
-        const point = parsePoint(input)
-        const revision = parseRevision(input)
-        if (!point) return { ok: false, error: 'invalid_coordinate' }
-        return revision === null ? { ok: false, error: 'invalid_revision' } : callbacks.playMove(point, revision)
+        const point = parsePoint(input);
+        const revision = parseRevision(input);
+        if (!point) return { ok: false, error: "invalid_coordinate" };
+        return revision === null
+          ? { ok: false, error: "invalid_revision" }
+          : callbacks.playMove(point, revision);
       },
     },
     {
-      name: 'pass_go_turn',
-      description: 'Pass the AI turn in the current Go game using the latest state revision.',
-      inputSchema: toolSchema({ expectedRevision: { type: 'integer', minimum: 0 } }, ['expectedRevision']),
+      name: "pass_go_turn",
+      description:
+        "Pass the AI turn in the current Go game using the latest state revision.",
+      inputSchema: toolSchema(
+        { expectedRevision: { type: "integer", minimum: 0 } },
+        ["expectedRevision"],
+      ),
       execute: (input) => {
-        const revision = parseRevision(input)
-        return revision === null ? { ok: false, error: 'invalid_revision' } : callbacks.passTurn(revision)
+        const revision = parseRevision(input);
+        return revision === null
+          ? { ok: false, error: "invalid_revision" }
+          : callbacks.passTurn(revision);
       },
     },
     {
-      name: 'resign_go_game',
-      description: 'Resign the current Go game for the AI using the latest state revision.',
-      inputSchema: toolSchema({ expectedRevision: { type: 'integer', minimum: 0 } }, ['expectedRevision']),
+      name: "resign_go_game",
+      description:
+        "Resign the current Go game for the AI using the latest state revision.",
+      inputSchema: toolSchema(
+        { expectedRevision: { type: "integer", minimum: 0 } },
+        ["expectedRevision"],
+      ),
       execute: (input) => {
-        const revision = parseRevision(input)
-        return revision === null ? { ok: false, error: 'invalid_revision' } : callbacks.resignGame(revision)
+        const revision = parseRevision(input);
+        return revision === null
+          ? { ok: false, error: "invalid_revision" }
+          : callbacks.resignGame(revision);
       },
     },
-  ]
+  ];
 
-  const controller = new AbortController()
+  const controller = new AbortController();
 
   void (async () => {
     try {
       for (const tool of tools) {
-        await registerTool(tool, { signal: controller.signal })
+        await registerTool(tool, { signal: controller.signal });
       }
     } catch {
       // The host can expose the API while rejecting a tool schema or permission.
-      controller.abort()
-      onStatus('unsupported')
+      controller.abort();
+      onStatus("unsupported");
     }
-  })()
+  })();
 
-  return () => controller.abort()
+  return () => controller.abort();
 }

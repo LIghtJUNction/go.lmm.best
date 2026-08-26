@@ -1,10 +1,13 @@
 :root {
   color-scheme: dark;
-  font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  font-family:
+    "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
-  --font-display: "Barlow Condensed", "PingFang SC", "Microsoft YaHei", sans-serif;
-  --font-body: "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  --font-display:
+    "Barlow Condensed", "PingFang SC", "Microsoft YaHei", sans-serif;
+  --font-body:
+    "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
   --ink: #f4f1e8;
   --ink-strong: #ffffff;
   --ink-muted: #9aa69d;
@@ -50,7 +53,12 @@ body {
   color: var(--ink);
   background:
     radial-gradient(circle at 76% 4%, rgb(99 128 84 / 11%), transparent 32rem),
-    linear-gradient(118deg, var(--ground) 0%, #111814 55%, var(--ground-deep) 100%);
+    linear-gradient(
+      118deg,
+      var(--ground) 0%,
+      #111814 55%,
+      var(--ground-deep) 100%
+    );
 }
 
 body::before {
@@ -59,7 +67,12 @@ body::before {
   inset: 0;
   pointer-events: none;
   content: "";
-  background: linear-gradient(105deg, transparent 48%, rgb(173 220 104 / 3%) 48.1%, transparent 48.35%);
+  background: linear-gradient(
+    105deg,
+    transparent 48%,
+    rgb(173 220 104 / 3%) 48.1%,
+    transparent 48.35%
+  );
 }
 
 button,
@@ -357,7 +370,12 @@ a:focus-visible {
   justify-content: center;
   min-height: 52px;
   border: 0;
-  transition: transform 160ms var(--ease-out), color 140ms ease, background 140ms ease, border-color 140ms ease, opacity 140ms ease;
+  transition:
+    transform 160ms var(--ease-out),
+    color 140ms ease,
+    background 140ms ease,
+    border-color 140ms ease,
+    opacity 140ms ease;
 }
 
 .primary-button {
@@ -631,7 +649,9 @@ a:focus-visible {
 .board-card--preview {
   padding: 18px;
   transform: rotate(1deg);
-  transition: transform 280ms var(--ease-out), box-shadow 280ms var(--ease-out);
+  transition:
+    transform 280ms var(--ease-out),
+    box-shadow 280ms var(--ease-out);
 }
 
 .board-card--preview:hover {
@@ -726,10 +746,27 @@ a:focus-visible {
   border: 1px solid rgb(255 237 187 / 30%);
   border-radius: var(--radius-md);
   background:
-    linear-gradient(100deg, transparent 0 46%, rgb(93 56 20 / 8%) 47% 48%, transparent 49% 100%),
-    linear-gradient(7deg, transparent 0 30%, rgb(255 238 187 / 8%) 31% 31.5%, transparent 32% 100%),
-    linear-gradient(135deg, var(--wood-light), var(--wood) 58%, var(--wood-deep));
-  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 9%), inset 0 18px 38px rgb(255 245 208 / 8%);
+    linear-gradient(
+      100deg,
+      transparent 0 46%,
+      rgb(93 56 20 / 8%) 47% 48%,
+      transparent 49% 100%
+    ),
+    linear-gradient(
+      7deg,
+      transparent 0 30%,
+      rgb(255 238 187 / 8%) 31% 31.5%,
+      transparent 32% 100%
+    ),
+    linear-gradient(
+      135deg,
+      var(--wood-light),
+      var(--wood) 58%,
+      var(--wood-deep)
+    );
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 9%),
+    inset 0 18px 38px rgb(255 245 208 / 8%);
 }
 
 .go-board {
@@ -744,33 +781,87 @@ a:focus-visible {
   pointer-events: none;
 }
 
-[data-board-position="0"] { --board-position: 0%; }
-[data-board-position="1"] { --board-position: 12.5%; }
-[data-board-position="2"] { --board-position: 25%; }
-[data-board-position="3"] { --board-position: 37.5%; }
-[data-board-position="4"] { --board-position: 50%; }
-[data-board-position="5"] { --board-position: 62.5%; }
-[data-board-position="6"] { --board-position: 75%; }
-[data-board-position="7"] { --board-position: 87.5%; }
-[data-board-position="8"] { --board-position: 100%; }
-[data-board-x="0"] { --board-x: 0%; }
-[data-board-x="1"] { --board-x: 12.5%; }
-[data-board-x="2"] { --board-x: 25%; }
-[data-board-x="3"] { --board-x: 37.5%; }
-[data-board-x="4"] { --board-x: 50%; }
-[data-board-x="5"] { --board-x: 62.5%; }
-[data-board-x="6"] { --board-x: 75%; }
-[data-board-x="7"] { --board-x: 87.5%; }
-[data-board-x="8"] { --board-x: 100%; }
-[data-board-y="0"] { --board-y: 0%; }
-[data-board-y="1"] { --board-y: 12.5%; }
-[data-board-y="2"] { --board-y: 25%; }
-[data-board-y="3"] { --board-y: 37.5%; }
-[data-board-y="4"] { --board-y: 50%; }
-[data-board-y="5"] { --board-y: 62.5%; }
-[data-board-y="6"] { --board-y: 75%; }
-[data-board-y="7"] { --board-y: 87.5%; }
-[data-board-y="8"] { --board-y: 100%; }
+[data-board-position="0"] {
+  --board-position: 0%;
+}
+[data-board-position="1"] {
+  --board-position: 12.5%;
+}
+[data-board-position="2"] {
+  --board-position: 25%;
+}
+[data-board-position="3"] {
+  --board-position: 37.5%;
+}
+[data-board-position="4"] {
+  --board-position: 50%;
+}
+[data-board-position="5"] {
+  --board-position: 62.5%;
+}
+[data-board-position="6"] {
+  --board-position: 75%;
+}
+[data-board-position="7"] {
+  --board-position: 87.5%;
+}
+[data-board-position="8"] {
+  --board-position: 100%;
+}
+[data-board-x="0"] {
+  --board-x: 0%;
+}
+[data-board-x="1"] {
+  --board-x: 12.5%;
+}
+[data-board-x="2"] {
+  --board-x: 25%;
+}
+[data-board-x="3"] {
+  --board-x: 37.5%;
+}
+[data-board-x="4"] {
+  --board-x: 50%;
+}
+[data-board-x="5"] {
+  --board-x: 62.5%;
+}
+[data-board-x="6"] {
+  --board-x: 75%;
+}
+[data-board-x="7"] {
+  --board-x: 87.5%;
+}
+[data-board-x="8"] {
+  --board-x: 100%;
+}
+[data-board-y="0"] {
+  --board-y: 0%;
+}
+[data-board-y="1"] {
+  --board-y: 12.5%;
+}
+[data-board-y="2"] {
+  --board-y: 25%;
+}
+[data-board-y="3"] {
+  --board-y: 37.5%;
+}
+[data-board-y="4"] {
+  --board-y: 50%;
+}
+[data-board-y="5"] {
+  --board-y: 62.5%;
+}
+[data-board-y="6"] {
+  --board-y: 75%;
+}
+[data-board-y="7"] {
+  --board-y: 87.5%;
+}
+[data-board-y="8"] {
+  --board-y: 100%;
+}
 
 .board-line {
   position: absolute;
@@ -831,7 +922,10 @@ a:focus-visible {
   border: 1px solid transparent;
   border-radius: 50%;
   transform: scale(0.7);
-  transition: transform 150ms var(--ease-out), border-color 150ms ease, background 150ms ease;
+  transition:
+    transform 150ms var(--ease-out),
+    border-color 150ms ease,
+    background 150ms ease;
 }
 
 .intersection:not(:disabled):hover::before,
@@ -857,13 +951,29 @@ a:focus-visible {
 }
 
 .has-black .stone {
-  background: radial-gradient(circle at 34% 28%, #536059 0%, #222824 32%, #080a09 74%);
-  box-shadow: inset -3px -5px 8px rgb(0 0 0 / 52%), inset 2px 2px 5px rgb(255 255 255 / 17%), 0 5px 8px rgb(44 27 8 / 42%);
+  background: radial-gradient(
+    circle at 34% 28%,
+    #536059 0%,
+    #222824 32%,
+    #080a09 74%
+  );
+  box-shadow:
+    inset -3px -5px 8px rgb(0 0 0 / 52%),
+    inset 2px 2px 5px rgb(255 255 255 / 17%),
+    0 5px 8px rgb(44 27 8 / 42%);
 }
 
 .has-white .stone {
-  background: radial-gradient(circle at 34% 28%, #fff 0%, #f5f3ea 48%, #c6c4ba 100%);
-  box-shadow: inset -3px -4px 7px rgb(80 77 67 / 25%), inset 2px 2px 5px rgb(255 255 255 / 85%), 0 5px 8px rgb(44 27 8 / 34%);
+  background: radial-gradient(
+    circle at 34% 28%,
+    #fff 0%,
+    #f5f3ea 48%,
+    #c6c4ba 100%
+  );
+  box-shadow:
+    inset -3px -4px 7px rgb(80 77 67 / 25%),
+    inset 2px 2px 5px rgb(255 255 255 / 85%),
+    0 5px 8px rgb(44 27 8 / 34%);
 }
 
 .stone i {
@@ -1248,6 +1358,39 @@ a:focus-visible {
   text-transform: uppercase;
 }
 
+.agent-join-steps {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+  color: var(--ink-muted);
+  font-size: 10px;
+  line-height: 1.5;
+  list-style: none;
+  counter-reset: agent-step;
+}
+
+.agent-join-steps li {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  gap: 8px;
+  align-items: start;
+  counter-increment: agent-step;
+}
+
+.agent-join-steps li::before {
+  display: grid;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  color: var(--accent);
+  font-family: var(--font-display);
+  font-size: 9px;
+  border: 1px solid rgb(169 228 91 / 28%);
+  border-radius: 50%;
+  content: counter(agent-step);
+}
+
 .tool-call-card code,
 .tool-row code {
   overflow: hidden;
@@ -1256,6 +1399,14 @@ a:focus-visible {
   font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.tool-call-card code {
+  padding: 10px 11px;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  border-left: 2px solid var(--accent);
+  background: var(--surface);
 }
 
 .tool-state {
@@ -1783,7 +1934,9 @@ a:focus-visible {
   border: 0;
   border-radius: 50%;
   background: transparent;
-  transition: color 140ms ease, background 140ms ease;
+  transition:
+    color 140ms ease,
+    background 140ms ease;
 }
 
 .icon-button:hover {
@@ -1815,33 +1968,72 @@ a:focus-visible {
 }
 
 @keyframes status-pulse {
-  0%, 100% { opacity: 0.5; transform: scale(0.82); }
-  50% { opacity: 1; transform: scale(1.08); }
+  0%,
+  100% {
+    opacity: 0.5;
+    transform: scale(0.82);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
 }
 
 @keyframes place-stone {
-  from { opacity: 0.45; transform: translateY(-9px) scale(0.82); }
-  to { opacity: 1; transform: translateY(0) scale(1); }
+  from {
+    opacity: 0.45;
+    transform: translateY(-9px) scale(0.82);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 @keyframes orbit {
-  from { transform: rotate(0deg) translateX(58px) rotate(0deg); }
-  to { transform: rotate(360deg) translateX(58px) rotate(-360deg); }
+  from {
+    transform: rotate(0deg) translateX(58px) rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg) translateX(58px) rotate(-360deg);
+  }
 }
 
 @keyframes waiting-stones {
-  0%, 100% { opacity: 0.34; transform: translateY(0); }
-  50% { opacity: 1; transform: translateY(-5px); }
+  0%,
+  100% {
+    opacity: 0.34;
+    transform: translateY(0);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(-5px);
+  }
 }
 
 @keyframes waiting-line {
-  0%, 100% { opacity: 0.35; transform: scaleX(0.55); transform-origin: left; }
-  50% { opacity: 1; transform: scaleX(1); transform-origin: left; }
+  0%,
+  100% {
+    opacity: 0.35;
+    transform: scaleX(0.55);
+    transform-origin: left;
+  }
+  50% {
+    opacity: 1;
+    transform: scaleX(1);
+    transform-origin: left;
+  }
 }
 
 @keyframes toast-in {
-  from { opacity: 0; transform: translateY(12px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @media (max-width: 1160px) {
@@ -2183,6 +2375,15 @@ a:focus-visible {
     padding: 22px 0;
     flex-direction: column;
     justify-content: center;
+  }
+}
+
+@media (max-width: 640px) {
+  .steps-section,
+  .lobby-visual-column,
+  .game-sidebar {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 720px;
   }
 }
 

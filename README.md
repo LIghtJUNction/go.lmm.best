@@ -56,7 +56,7 @@ The current implementation uses the imperative WebMCP API at `document.modelCont
 
 | Tool | Purpose | Important input |
 | --- | --- | --- |
-| `join_go_match` | Join a waiting human and begin the game | optional AI display name |
+| `join_go_match` | Join the oldest waiting human and begin the game | required `modelId`; optional AI display name |
 | `get_go_game_state` | Read room status, board, turn, captures, moves, position hash, and revision | none |
 | `play_go_move` | Submit a legal AI move | `coordinate` or `x`/`y`, plus `expectedRevision` |
 | `pass_go_turn` | Pass the AI turn | `expectedRevision` |
@@ -65,7 +65,7 @@ The current implementation uses the imperative WebMCP API at `document.modelCont
 Example AI loop:
 
 ```text
-join_go_match({ displayName: "WebMCP AI" })
+join_go_match({ modelId: "openai/gpt-5", displayName: "WebMCP AI" })
         ↓
 get_go_game_state()
         ↓
@@ -76,7 +76,27 @@ play_go_move({ coordinate: "E6", expectedRevision: 11 })
 read the structured tool result
 ```
 
-The revision check prevents a tool call based on an older position from being applied after the human or another action has already advanced the game.
+The revision check prevents a tool call based on an older position from being applied after the human or another action has already advanced the game. `modelId` is mandatory when an AI joins and is shown to the human opponent throughout the match.
+
+## Enable WebMCP
+
+Use either of these paths before joining a real match:
+
+### ChatGPT app
+
+1. Open the ChatGPT app.
+2. Open `https://go.lmm.best` with its built-in browser.
+3. Ask your agent to inspect the WebMCP tools exposed by the page.
+4. After the human enters matchmaking, have the agent call `join_go_match` with its real `modelId`.
+
+### Chromium-based browser
+
+1. Open `chrome://flags/#enable-webmcp-testing`.
+2. Set **WebMCP testing** to **Enabled**.
+3. Relaunch the browser.
+4. Open `https://go.lmm.best`, let the page expose its WebMCP tools, and have the agent call `join_go_match` with its real `modelId`.
+
+The AI must not invent or omit the model identifier. A join request without a non-empty `modelId` is rejected.
 
 ## Architecture
 
@@ -203,7 +223,6 @@ Reloading the page currently resets the room. Persistent matchmaking, clocks, sc
 
 ## Next
 
-- Adjustable AI difficulty
 - 13×13 and 19×19 boards
 - Territory scoring and full ko/superko policy
 - Move history and SGF import/export

@@ -26,18 +26,20 @@ The match is not a conventional human-versus-bot widget: the human enters throug
 ## Operating Context
 
 - The human keeps the browser room open while waiting for an agent.
-- The agent calls `join_go_match`, reads state, plays coordinates, passes, or resigns through WebMCP.
-- The first playable version uses one 9×9 room and in-memory state so the complete handoff can be demonstrated before a backend contract is chosen.
+- The agent calls `join_go_match` with its real `modelId`, then reads state, plays coordinates, passes, or resigns through WebMCP.
+- Matchmaking is strict FIFO within separate human and AI queues. The backend publishes both queue-side population counts in real time.
+- The first playable version uses one 9×9 room and in-memory state while the real-time matchmaking backend contract is introduced.
 - English is the default public product language; Chinese remains available through the language switch.
 
 ## Capabilities and Constraints
 
 - Domain: `go.lmm.best`.
-- Human matchmaking starts with a button.
-- AI matchmaking and game actions use WebMCP tools.
-- The initial playable rules cover alternating turns, group capture, suicide prevention, pass, and resign on a 9×9 board.
+- Human matchmaking starts with a button; no login, registration, or account is required.
+- AI matchmaking and game actions use WebMCP tools; `join_go_match` rejects calls without a non-empty `modelId`.
+- Active games equal `min(aiPlayers, humanPlayers)`; the larger side minus the smaller side is that side’s waiting count.
+- The initial playable rules cover alternating turns, group capture, suicide and repeated-position prevention, pass, and resign on a 9×9 board.
 - WebMCP capability must be feature-detected; an unsupported browser must never be represented as connected.
-- Accounts, ranking, clocks, spectators, persistent rooms, full 19×19 adjudication, ko/superko, scoring, and anti-cheat are deliberately undecided for the production phase.
+- Adjustable AI difficulty is not a product goal. Ranking, clocks, spectators, persistent rooms, full 19×19 scoring, and anti-cheat remain future decisions.
 
 ## Brand Commitments
 
@@ -56,7 +58,8 @@ The match is not a conventional human-versus-bot widget: the human enters throug
 2. Keep the primary action obvious at every stage.
 3. Report tool availability and failure states honestly.
 4. Preserve one shared game state across UI and WebMCP calls.
-5. Let the first prototype prove the loop before expanding the rules or infrastructure.
+5. Match strictly by arrival time; never rank or weight participants by model or difficulty.
+6. Let the first prototype prove the loop before expanding the rules or infrastructure.
 
 ## Accessibility & Inclusion
 
