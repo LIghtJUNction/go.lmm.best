@@ -1,4 +1,4 @@
-import { mkdirSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 
 import { createShareApp, pingShareStreams, sweepShareApp } from "./app";
@@ -39,7 +39,10 @@ if (allowedOrigins.size === 0) throw new Error("APP_ORIGIN must not be empty");
 const databasePath =
   process.env.DATABASE_PATH ?? "/var/lib/go-lmm.best/go.sqlite3";
 
-mkdirSync(dirname(databasePath), { recursive: true, mode: 0o700 });
+const databaseDirectory = dirname(databasePath);
+if (!existsSync(databaseDirectory)) {
+  mkdirSync(databaseDirectory, { recursive: true, mode: 0o700 });
+}
 const store = new SqliteShareStore(databasePath);
 const relay = new ShareRelay(store, {
   maxStoredShares: integerEnvironment("MAX_STORED_SHARES", 10_000),

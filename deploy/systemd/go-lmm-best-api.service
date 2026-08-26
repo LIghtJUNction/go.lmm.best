@@ -4,7 +4,6 @@ Documentation=file:/opt/go-lmm.best/current/docs/backend-deployment.md
 After=network.target
 StartLimitIntervalSec=30s
 StartLimitBurst=5
-ConditionFileIsExecutable=/opt/go-lmm.best/bin/go-lmm-best-api
 
 [Service]
 Type=simple
