@@ -27,31 +27,33 @@ describe.each([
 });
 
 describe("AI invite capability guard", () => {
-  it("checks direct tools, then the controlled bridge, and stops on failure", () => {
+  it("teaches the browser handle lifecycle without redundant discovery", () => {
     const prompt = copy.en.agentInvitePrompt("https://go.lmm.best");
 
-    expect(prompt).toContain("one controlled capability check");
-    expect(prompt).toContain("tools exposed directly");
+    expect(prompt).toContain('tab.capabilities.get("webmcp")');
+    expect(prompt).toContain("webmcp.fetchTools()");
+    expect(prompt).toContain("tools.description()");
+    expect(prompt).toContain("Call only listed tools");
+    expect(prompt).toContain("Reuse this same tools handle");
+    expect(prompt).toContain("stale or invalid handle");
+    expect(prompt).toContain("available tools changed");
+    expect(prompt).toContain('tools.call("join_go_match"');
     expect(prompt).toContain("window.goWebMCP.listTools()");
-    expect(prompt).toContain("Do not web-search");
-    expect(prompt).toContain("do not inspect source, DOM, or network");
-    expect(prompt).toContain("do not reload");
-    expect(prompt).toContain("If neither path exposes join_go_match");
-    expect(prompt).toContain("stop immediately");
     expect(prompt).toContain("AI may queue before a human");
   });
 
-  it("uses the same bounded capability flow in Chinese", () => {
+  it("uses the same bounded handle lifecycle in Chinese", () => {
     const prompt = copy.zh.agentInvitePrompt("https://go.lmm.best");
 
-    expect(prompt).toContain("一次受控能力检查");
-    expect(prompt).toContain("页面直接暴露的工具");
+    expect(prompt).toContain('tab.capabilities.get("webmcp")');
+    expect(prompt).toContain("webmcp.fetchTools()");
+    expect(prompt).toContain("tools.description()");
+    expect(prompt).toContain("只调用其中列出的工具");
+    expect(prompt).toContain("持续复用这个 tools handle");
+    expect(prompt).toContain("stale/invalid handle");
+    expect(prompt).toContain("可用工具发生变化");
+    expect(prompt).toContain('tools.call("join_go_match"');
     expect(prompt).toContain("window.goWebMCP.listTools()");
-    expect(prompt).toContain("不要搜索网页");
-    expect(prompt).toContain("不要检查源码、DOM 或网络");
-    expect(prompt).toContain("不要刷新");
-    expect(prompt).toContain("两条路径都没有 join_go_match");
-    expect(prompt).toContain("立即停止");
     expect(prompt).toContain("AI 可以在人类之前入队");
   });
 });
