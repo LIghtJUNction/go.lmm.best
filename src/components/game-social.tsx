@@ -1,5 +1,11 @@
-import { useState, type FormEvent, type KeyboardEvent } from "react";
 import {
+    useState,
+    type FormEvent,
+    type KeyboardEvent,
+    type Ref,
+} from "react";
+import {
+    ArrowRightIcon,
     FlagIcon,
     MessageCircleIcon,
     RotateCcwIcon,
@@ -44,6 +50,59 @@ import {
     type GameState,
 } from "@/lib/session";
 
+export function ConversationCue({
+    t,
+    messages,
+    onOpen,
+}: {
+    t: Copy;
+    messages: GameMessage[];
+    onOpen: () => void;
+}) {
+    const latest = messages.at(-1);
+
+    return (
+        <button
+            type="button"
+            className="group flex w-full items-center gap-3 rounded-lg border bg-card/55 p-3 text-left transition-colors hover:bg-card focus-visible:border-ring focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+            aria-controls="game-chat-panel"
+            onClick={onOpen}
+        >
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-full border bg-background text-foreground">
+                <MessageCircleIcon className="size-4" />
+            </span>
+            <span
+                className="min-w-0 flex-1"
+                aria-live="polite"
+                aria-atomic="true"
+            >
+                <span className="flex items-center gap-2">
+                    <span className="text-sm font-medium">{t.chatTitle}</span>
+                    <Badge variant={messages.length > 0 ? "secondary" : "outline"}>
+                        {messages.length}
+                    </Badge>
+                </span>
+                {latest ? (
+                    <span className="mt-1 block min-w-0 truncate">
+                        <span className="mr-2 text-xs font-medium text-muted-foreground">
+                            {latest.actor === "human" ? t.human : t.ai} ·{" "}
+                            {t.messageAtMove(latest.moveNumber)}
+                        </span>
+                        <span className="text-sm text-foreground">
+                            {latest.text}
+                        </span>
+                    </span>
+                ) : (
+                    <span className="mt-1 block truncate text-sm text-muted-foreground">
+                        {t.noMessages}
+                    </span>
+                )}
+            </span>
+            <ArrowRightIcon className="size-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+        </button>
+    );
+}
+
 export function GameChat({
     t,
     messages,
@@ -51,6 +110,7 @@ export function GameChat({
     onDanmakuToggle,
     onSendMessage,
     disabled,
+    inputRef,
 }: {
     t: Copy;
     messages: GameMessage[];
@@ -58,6 +118,7 @@ export function GameChat({
     onDanmakuToggle: (enabled: boolean) => void;
     onSendMessage: (message: string) => boolean;
     disabled: boolean;
+    inputRef?: Ref<HTMLTextAreaElement>;
 }) {
     const [draft, setDraft] = useState("");
     const canSend = !disabled && draft.trim().length > 0;
@@ -77,7 +138,8 @@ export function GameChat({
 
     return (
         <section
-            className="flex flex-col gap-4"
+            id="game-chat-panel"
+            className="scroll-mt-6 flex flex-col gap-4 rounded-lg border bg-card/35 p-4"
             aria-labelledby="game-chat-title"
         >
             <div className="flex items-start justify-between gap-4">
@@ -89,7 +151,9 @@ export function GameChat({
                         {t.chatDescription}
                     </p>
                 </div>
-                <Badge variant="outline">{messages.length}</Badge>
+                <Badge variant={messages.length > 0 ? "secondary" : "outline"}>
+                    {messages.length}
+                </Badge>
             </div>
 
             <MessageScrollerProvider>
@@ -114,18 +178,20 @@ export function GameChat({
                                             <Message
                                                 align={human ? "end" : "start"}
                                             >
-                                                <MessageHeader>
-                                                    <span>
-                                                        {human ? t.human : t.ai}
-                                                    </span>
-                                                    <span>·</span>
-                                                    <span>
-                                                        {t.messageAtMove(
-                                                            message.moveNumber,
-                                                        )}
-                                                    </span>
-                                                </MessageHeader>
                                                 <MessageContent>
+                                                    <MessageHeader className="gap-1">
+                                                        <span>
+                                                            {human
+                                                                ? t.human
+                                                                : t.ai}
+                                                        </span>
+                                                        <span>·</span>
+                                                        <span>
+                                                            {t.messageAtMove(
+                                                                message.moveNumber,
+                                                            )}
+                                                        </span>
+                                                    </MessageHeader>
                                                     <Bubble
                                                         align={
                                                             human
@@ -157,6 +223,8 @@ export function GameChat({
                 <Field>
                     <InputGroup className="h-auto">
                         <InputGroupTextarea
+                            ref={inputRef}
+                            id="game-chat-input"
                             value={draft}
                             onChange={(event) => setDraft(event.target.value)}
                             onKeyDown={handleKeyDown}
@@ -175,12 +243,14 @@ export function GameChat({
                             </InputGroupText>
                             <InputGroupButton
                                 type="submit"
-                                size="icon-xs"
+                                size="sm"
                                 variant="default"
+                                className="h-8 px-3"
                                 disabled={!canSend}
                                 aria-label={t.sendMessage}
                             >
                                 <SendIcon />
+                                {t.sendMessage}
                             </InputGroupButton>
                         </InputGroupAddon>
                     </InputGroup>

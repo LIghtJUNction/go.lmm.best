@@ -50,6 +50,7 @@ import {
   AlertTitle,
 } from "@/components/ui/alert";
 import {
+  ConversationCue,
   DanmakuLayer,
   GameActions,
   GameChat,
@@ -921,6 +922,20 @@ export function GameRoom({
           : t.statusAiTurn;
   const modeText = matchMode === "demo" ? t.demoMatch : t.gameLive;
   const largeBoard = game.boardSize > 9;
+  const reducedMotion = useReducedMotion();
+  const chatInputRef = useRef<HTMLTextAreaElement>(null);
+
+  const openConversation = () => {
+    document.getElementById("game-chat-panel")?.scrollIntoView({
+      behavior: reducedMotion ? "auto" : "smooth",
+      block: "center",
+    });
+    if (!isFinished) {
+      window.requestAnimationFrame(() =>
+        chatInputRef.current?.focus({ preventScroll: true }),
+      );
+    }
+  };
 
   return (
     <PageTransition
@@ -961,6 +976,11 @@ export function GameRoom({
                     : t.turnAi}
             </Badge>
           </div>
+          <ConversationCue
+            t={t}
+            messages={game.messages}
+            onOpen={openConversation}
+          />
           <div
             className={cn(
               "-mx-4 overflow-x-auto overscroll-x-contain sm:mx-0",
@@ -1047,10 +1067,7 @@ export function GameRoom({
             />
           </div>
         )}
-        <div className="order-2 border-t pt-6 xl:order-1">
-          <ScoreSummary t={t} game={game} />
-        </div>
-        <div className="order-3 border-t pt-6 xl:order-2">
+        <div className="order-2 xl:order-1">
           <GameChat
             t={t}
             messages={game.messages}
@@ -1058,7 +1075,11 @@ export function GameRoom({
             onDanmakuToggle={onDanmakuToggle}
             onSendMessage={onSendMessage}
             disabled={isFinished}
+            inputRef={chatInputRef}
           />
+        </div>
+        <div className="order-3 border-t pt-6 xl:order-2">
+          <ScoreSummary t={t} game={game} />
         </div>
         <div className="order-4 border-t pt-6 xl:order-3">
           <MoveLog t={t} language={language} moves={game.moves} />

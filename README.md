@@ -25,7 +25,7 @@ This lets a person and an agent share an interactive browser game without a cust
 2. Let the AI inspect the page tools and call `join_go_match` with its real `modelId`. The AI may enter the queue first.
 3. Join from the visible human control on the same page.
 4. Choose 9×9, 13×13, or 19×19 and start the game.
-5. The human uses the board. The AI reads the compact coordinate board, takes a revision-checked action, then calls `wait_for_go_turn` instead of polling while the human thinks.
+5. The human uses the board or chat. The AI reads the compact coordinate board, takes revision-checked actions, then calls `wait_for_go_turn` instead of polling; a new human message wakes the wait immediately.
 
 The basic release stores its queue and game in the current page. Keep that page open. Cross-browser matchmaking, optional Passkey identity, and recovery are follow-up work and are not presented as live features.
 
@@ -45,14 +45,14 @@ The basic release stores its queue and game in the current page. Keep that page 
 | --- | --- | --- |
 | `join_go_match` | Join as the AI, including before a human arrives | `modelId`, optional `displayName` |
 | `get_go_game_state` | Read the compact ASCII board, turn, score state, and revision | none |
-| `wait_for_go_turn` | Wait without polling until the AI must act | `afterRevision`, optional `timeoutMs` |
+| `wait_for_go_turn` | Wait for a human message or until the AI must act | `afterRevision`, optional `afterMessageId`, `timeoutMs` |
 | `play_go_move` | Place one stone | `coordinate`, `expectedRevision` |
 | `pass_go_turn` | Pass | `expectedRevision` |
 | `resign_go_game` | Resign | `expectedRevision` |
 | `respond_go_scoring` | Accept or reject a human scoring request | `decision`, `expectedRevision` |
 | `send_go_message` | Send a bounded in-game message | `message` |
 
-Every state-changing game action passes through the same rules used by the visible board. Occupied points, suicide, repeated positions, wrong turns, invalid coordinates, and stale revisions return structured errors. `wait_for_go_turn` is read-only: it returns the latest full state when the AI can act, a scoring response is needed, the game ends, or a bounded wait expires.
+Every state-changing game action passes through the same rules used by the visible board. Occupied points, suicide, repeated positions, wrong turns, invalid coordinates, and stale revisions return structured errors. `wait_for_go_turn` is read-only: it returns the latest full state when a new human message arrives, the AI can act, a scoring response is needed, the game ends, or a bounded wait expires. Chat uses a separate `latestHumanMessageId` cursor, so messages do not invalidate move revisions.
 
 ## WebMCP implementation
 

@@ -70,12 +70,19 @@ describe("WebMCP tool registration", () => {
         .get("wait_for_go_turn")
         ?.execute({ afterRevision: 7, timeoutMs: 500 }),
     ).toEqual({ ok: false, error: "invalid_timeout" });
+    expect(
+      tools
+        .get("wait_for_go_turn")
+        ?.execute({ afterRevision: 7, afterMessageId: -1 }),
+    ).toEqual({ ok: false, error: "invalid_message_id" });
     await tools.get("wait_for_go_turn")?.execute({ afterRevision: 7 });
-    expect(waitForTurn).toHaveBeenCalledWith(7, 25000);
-    await tools
-      .get("wait_for_go_turn")
-      ?.execute({ afterRevision: 8, timeoutMs: 5000 });
-    expect(waitForTurn).toHaveBeenLastCalledWith(8, 5000);
+    expect(waitForTurn).toHaveBeenCalledWith(7, null, 25000);
+    await tools.get("wait_for_go_turn")?.execute({
+      afterRevision: 8,
+      afterMessageId: 11,
+      timeoutMs: 5000,
+    });
+    expect(waitForTurn).toHaveBeenLastCalledWith(8, 11, 5000);
 
     await tools
       .get("play_go_move")

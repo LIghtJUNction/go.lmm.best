@@ -62,6 +62,7 @@ export type WebMCPCallbacks = {
   getGameState: () => unknown | Promise<unknown>;
   waitForTurn: (
     afterRevision: number,
+    afterMessageId: number | null,
     timeoutMs: number,
   ) => unknown | Promise<unknown>;
   playMove: (
@@ -197,7 +198,7 @@ function createTools(callbacks: WebMCPCallbacks): WebMCPTool[] {
     {
       name: "wait_for_go_turn",
       description:
-        "Wait without polling while queued, during setup, or on the human turn. Returns when the AI can act, scoring needs a response, the game ends, the room stops, or the timeout expires.",
+        "Wait without polling while queued, during setup, or on the human turn. Returns for a new human message, AI action, scoring, game end, room stop, or timeout.",
       inputSchema: toolSchema(
         {
           afterRevision: {
@@ -205,6 +206,12 @@ function createTools(callbacks: WebMCPCallbacks): WebMCPTool[] {
             minimum: 0,
             description:
               "Latest revision returned by join_go_match, get_go_game_state, an AI action, or the previous wait result.",
+          },
+          afterMessageId: {
+            type: "integer",
+            minimum: 0,
+            description:
+              "Latest human message ID already observed. Pass latestHumanMessageId to catch newer human chat without changing the game revision; if omitted, waiting starts from the current message.",
           },
           timeoutMs: {
             type: "integer",
@@ -220,6 +227,7 @@ function createTools(callbacks: WebMCPCallbacks): WebMCPTool[] {
       execute: (input) => {
         const values = asRecord(input);
         const afterRevision = values.afterRevision;
+        const afterMessageId = values.afterMessageId ?? null;
         const timeoutMs = values.timeoutMs ?? 25000;
         if (
           typeof afterRevision !== "number" ||
@@ -229,6 +237,14 @@ function createTools(callbacks: WebMCPCallbacks): WebMCPTool[] {
           return { ok: false, error: "invalid_revision" };
         }
         if (
+          afterMessageId !== null &&
+          (typeof afterMessageId !== "number" ||
+            !Number.isInteger(afterMessageId) ||
+            afterMessageId < 0)
+        ) {
+          return { ok: false, error: "invalid_message_id" };
+        }
+        if (
           typeof timeoutMs !== "number" ||
           !Number.isInteger(timeoutMs) ||
           timeoutMs < 1000 ||
@@ -236,7 +252,11 @@ function createTools(callbacks: WebMCPCallbacks): WebMCPTool[] {
         ) {
           return { ok: false, error: "invalid_timeout" };
         }
-        return callbacks.waitForTurn(afterRevision, timeoutMs);
+        return callbacks.waitForTurn(
+          afterRevision,
+          afterMessageId as number | null,
+          timeoutMs,
+        );
       },
       annotations: { readOnlyHint: true },
     },

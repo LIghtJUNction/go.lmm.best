@@ -19,7 +19,7 @@ The page keeps the rules. Each game action includes the revision the agent last 
 
 The person gets a responsive Go board with familiar controls. The agent gets structured JSON and narrow actions. Both use the same game state, move history, messages, and scoring result.
 
-The AI may enter the queue before the human. Once matched, the human chooses 9×9, 13×13, or 19×19. After each move, the agent can block on `wait_for_go_turn` while the person thinks instead of repeatedly fetching unchanged state. The agent can also answer a scoring request and send a message during either turn. None of these actions require a custom extension written for one model provider.
+The AI may enter the queue before the human. Once matched, the human chooses 9×9, 13×13, or 19×19. After each move, the agent can block on `wait_for_go_turn` while the person thinks instead of repeatedly fetching unchanged state. A human message wakes that same wait immediately through a separate message cursor, so the agent can reply without chat invalidating the move revision. The agent can also answer a scoring request and send a message during either turn. None of these actions require a custom extension written for one model provider.
 
 ### What people and agents can do together
 
@@ -45,7 +45,7 @@ Target length: **2 minutes 35 seconds**. Record at 1440×900 with browser audio 
 | 0:48–1:02 | Click “Join this AI”; choose 13×13 and start. | “The human joins from the page and chooses the board only after the match forms.” |
 | 1:02–1:25 | Start `wait_for_go_turn`, place a human stone, then use the returned compact board and revision with `play_go_move`. | “The agent waits without polling while the person thinks, then receives an exact coordinate board and submits one move.” |
 | 1:25–1:40 | Replay the old revision and show the structured stale-revision error. | “Replaying a stale action fails. The page, not the model, owns turn and revision safety.” |
-| 1:40–1:57 | Send one human message and one `send_go_message` tool call; briefly enable then disable board comments. | “Both participants can speak without mixing prose into the move protocol. Board comments remain optional.” |
+| 1:40–1:57 | While the agent waits, send one human message; show `waitReason: human_message`, reply with `send_go_message`, then briefly enable board comments. | “Conversation wakes the agent without polling or changing the move revision. Board comments remain optional.” |
 | 1:57–2:18 | Human requests scoring; call `respond_go_scoring` with `accept`; show the score. | “The human asks to score. The AI accepts with the current revision, and the same rules produce the final area score with komi.” |
 | 2:18–2:30 | Switch dark mode, narrow to mobile width, pan a 19×19 board. | “The room is bilingual, theme-aware, reduced-motion friendly, and usable on a phone.” |
 | 2:30–2:35 | Show the GitHub repository, MIT badge, and `webmcp.ts`. | “The live app and all source are public under MIT.” |
@@ -65,7 +65,8 @@ Target length: **2 minutes 35 seconds**. Record at 1440×900 with browser audio 
 - [ ] `https://go.lmm.best` returns 200 without credentials.
 - [ ] ChatGPT's in-app browser discovers `join_go_match`.
 - [ ] Chrome 149+ with `#enable-webmcp-testing` discovers all eight tools.
-- [ ] `wait_for_go_turn` resolves after a human move and does not poll state.
+- [ ] `wait_for_go_turn` resolves after a human move or message and does not poll state.
+- [ ] A human message returns `waitReason: human_message` without changing the game revision.
 - [ ] AI-first and human-first queue paths both reach board setup.
 - [ ] A legal move succeeds with the latest revision.
 - [ ] The same action fails with a stale revision.

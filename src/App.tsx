@@ -85,6 +85,25 @@ function initialTheme(): Theme {
   return document.documentElement.classList.contains("dark") ? "dark" : "light";
 }
 
+function latestHumanMessageId(game: GameState) {
+  for (let index = game.messages.length - 1; index >= 0; index -= 1) {
+    if (game.messages[index].actor === "human") return game.messages[index].id;
+  }
+  return 0;
+}
+
+type WaitOutcome =
+  | {
+      waitStatus: "ready";
+      waitReason: "human_message" | "ai_turn" | "scoring" | "game_finished";
+    }
+  | { waitStatus: "waiting"; waitReason: "timeout" }
+  | { waitStatus: "stopped"; waitReason: "room_stopped" };
+
+type WaitReadiness =
+  | Exclude<WaitOutcome, { waitStatus: "waiting" }>
+  | null;
+
 function App() {
   const [language, setLanguage] = useState<Language>("en");
   const [theme, setTheme] = useState<Theme>(initialTheme);
@@ -260,6 +279,7 @@ function App() {
           queuePosition: 1,
           modelId: input.modelId,
           revision: 0,
+          latestHumanMessageId: 0,
           actionRequired: "wait_for_go_turn",
         };
       }
@@ -277,6 +297,7 @@ function App() {
           phase: "setup",
           modelId: input.modelId,
           revision: 0,
+          latestHumanMessageId: 0,
           defaultBoardSize: 9,
           boardOptions: [9, 13, 19],
           actionRequired: "wait_for_go_turn",
@@ -291,6 +312,7 @@ function App() {
               queueSide: "ai",
               queuePosition: 1,
               revision: gameRef.current.revision,
+              latestHumanMessageId: latestHumanMessageId(gameRef.current),
               actionRequired: "wait_for_go_turn",
             }
           : { ok: false, error: "ai_queue_occupied" };
@@ -309,6 +331,7 @@ function App() {
         ok: true,
         phase: "idle",
         revision: currentGame.revision,
+        latestHumanMessageId: latestHumanMessageId(currentGame),
         actionRequired: "join_go_match",
       };
     }
@@ -317,6 +340,7 @@ function App() {
         ok: true,
         phase: "queue",
         revision: currentGame.revision,
+        latestHumanMessageId: latestHumanMessageId(currentGame),
         queueSide: queueSideRef.current,
         queuePosition: 1,
         modelId: currentGame.aiModelId,
@@ -331,6 +355,7 @@ function App() {
         ok: true,
         phase: "setup",
         revision: currentGame.revision,
+        latestHumanMessageId: latestHumanMessageId(currentGame),
         modelId: currentGame.aiModelId,
         boardOptions: [9, 13, 19],
         defaultBoardSize: 9,
@@ -351,6 +376,7 @@ function App() {
       ok: true,
       phase: currentView,
       revision: currentGame.revision,
+      latestHumanMessageId: latestHumanMessageId(currentGame),
       boardSize: currentGame.boardSize,
       board: formatGoBoardForAgent(currentGame.board),
       turn: currentGame.turn,
@@ -377,7 +403,11 @@ function App() {
   }, [t.waitingForBoardSelection]);
 
   const waitForTurn = useCallback(
-    (afterRevision: number, timeoutMs: number) => {
+    (
+      afterRevision: number,
+      afterMessageId: number | null,
+      timeoutMs: number,
+    ) => {
       if (afterRevision > gameRef.current.revision) {
         return Promise.resolve({
           ok: false,
@@ -385,20 +415,42 @@ function App() {
           currentRevision: gameRef.current.revision,
         });
       }
+      const currentMessageId = latestHumanMessageId(gameRef.current);
+      const messageCursor = afterMessageId ?? currentMessageId;
+      if (messageCursor > currentMessageId) {
+        return Promise.resolve({
+          ok: false,
+          error: "future_message_id",
+          currentMessageId,
+        });
+      }
 
-      const readiness = () => {
+      const readiness = (): WaitReadiness => {
         const currentView = viewRef.current;
         const currentGame = gameRef.current;
-        if (currentView === "idle") return "stopped" as const;
+        if (currentView === "idle") {
+          return { waitStatus: "stopped", waitReason: "room_stopped" };
+        }
         if (currentView === "finished" || currentGame.endReason) {
-          return "ready" as const;
+          return { waitStatus: "ready", waitReason: "game_finished" };
         }
         if (
           currentView === "playing" &&
-          (currentGame.turn === currentGame.aiColor ||
-            currentGame.scoring.status === "pending")
+          currentGame.scoring.status === "pending"
         ) {
-          return "ready" as const;
+          return { waitStatus: "ready", waitReason: "scoring" };
+        }
+        if (
+          currentView === "playing" &&
+          latestHumanMessageId(currentGame) > messageCursor
+        ) {
+          return { waitStatus: "ready", waitReason: "human_message" };
+        }
+        if (
+          currentView === "playing" &&
+          currentGame.turn === currentGame.aiColor
+        ) {
+          return { waitStatus: "ready", waitReason: "ai_turn" };
         }
         return null;
       };
@@ -407,27 +459,36 @@ function App() {
       if (initialStatus) {
         return Promise.resolve({
           ...getGameState(),
-          waitStatus: initialStatus,
+          ...initialStatus,
           afterRevision,
+          afterMessageId: messageCursor,
         });
       }
 
       return new Promise((resolve) => {
         let settled = false;
         let timer = 0;
-        const finish = (waitStatus: "ready" | "waiting" | "stopped") => {
+        const finish = (status: WaitOutcome) => {
           if (settled) return;
           settled = true;
           window.clearTimeout(timer);
           stateChangeListenersRef.current.delete(onStateChange);
-          resolve({ ...getGameState(), waitStatus, afterRevision });
+          resolve({
+            ...getGameState(),
+            ...status,
+            afterRevision,
+            afterMessageId: messageCursor,
+          });
         };
         const onStateChange = () => {
           const status = readiness();
           if (status) finish(status);
         };
         stateChangeListenersRef.current.add(onStateChange);
-        timer = window.setTimeout(() => finish("waiting"), timeoutMs);
+        timer = window.setTimeout(
+          () => finish({ waitStatus: "waiting", waitReason: "timeout" }),
+          timeoutMs,
+        );
         onStateChange();
       });
     },
@@ -452,6 +513,7 @@ function App() {
       return {
         ok: true,
         revision: result.game.revision,
+        latestHumanMessageId: latestHumanMessageId(result.game),
         phase: result.game.endReason ? "finished" : "playing",
       };
     },
@@ -515,7 +577,11 @@ function App() {
       if (!result.ok) return { ok: false, error: result.error };
       commitGame(result.game);
       setLastToolCall("send_go_message");
-      return { ok: true, messageId: result.message.id };
+      return {
+        ok: true,
+        messageId: result.message.id,
+        latestHumanMessageId: latestHumanMessageId(result.game),
+      };
     },
     [commitGame],
   );
@@ -537,8 +603,8 @@ function App() {
         {
           joinMatch: (input) => callbacksRef.current.joinMatch(input),
           getGameState: () => callbacksRef.current.getGameState(),
-          waitForTurn: (revision, timeoutMs) =>
-            callbacksRef.current.waitForTurn(revision, timeoutMs),
+          waitForTurn: (revision, messageId, timeoutMs) =>
+            callbacksRef.current.waitForTurn(revision, messageId, timeoutMs),
           playMove: (point, revision) =>
             callbacksRef.current.playMove(point, revision),
           passTurn: (revision) => callbacksRef.current.passTurn(revision),

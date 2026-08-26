@@ -8,6 +8,8 @@ const requiredPromptTerms = [
   "modelId",
   "get_go_game_state",
   "wait_for_go_turn",
+  "afterMessageId",
+  "latestHumanMessageId",
   "expectedRevision",
   "play_go_move",
   "pass_go_turn",
@@ -43,6 +45,7 @@ describe("AI invite capability guard", () => {
     expect(prompt).toContain("AI may queue before a human");
     expect(prompt).toContain("call that tool once");
     expect(prompt).toContain("do not loop on get_go_game_state");
+    expect(prompt).toContain("waitReason is human_message");
     expect(prompt).toContain("waitStatus is waiting");
   });
 
@@ -61,6 +64,7 @@ describe("AI invite capability guard", () => {
     expect(prompt).toContain("AI 可以在人类之前入队");
     expect(prompt).toContain("只调用一次该工具");
     expect(prompt).toContain("不要循环调用 get_go_game_state");
+    expect(prompt).toContain("waitReason 为 human_message");
     expect(prompt).toContain("waitStatus 为 waiting");
   });
 });
