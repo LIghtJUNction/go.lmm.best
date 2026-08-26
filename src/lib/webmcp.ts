@@ -96,20 +96,8 @@ function asRecord(input: unknown): Record<string, unknown> {
     : {};
 }
 
-function parsePoint(input: unknown): Point | string | null {
-  const values = asRecord(input);
-  const x = values.x;
-  const y = values.y;
-  if (
-    typeof x === "number" &&
-    Number.isInteger(x) &&
-    typeof y === "number" &&
-    Number.isInteger(y)
-  ) {
-    return { x, y };
-  }
-
-  const coordinate = values.coordinate;
+function parseCoordinate(input: unknown): string | null {
+  const coordinate = asRecord(input).coordinate;
   if (typeof coordinate !== "string") return null;
   const match = coordinate
     .trim()
@@ -150,12 +138,18 @@ function revisionSchema() {
   };
 }
 
+function toolDescription(summary: string, successShape: string): string {
+  return `${summary} Success result: ${successShape}. Failure result: { ok: false, error: string, ... }.`;
+}
+
 function createTools(callbacks: WebMCPCallbacks): WebMCPTool[] {
   return [
     {
       name: "join_go_match",
-      description:
+      description: toolDescription(
         "Join the FIFO human-vs-AI Go queue with a real model ID. If no human is waiting, the AI remains queued until a human arrives.",
+        '{ ok: true, status: "queued" | "matched", revision: integer, latestHumanMessageId: integer, actionRequired: string, ... }',
+      ),
       inputSchema: toolSchema(
         {
           modelId: {
@@ -189,16 +183,20 @@ function createTools(callbacks: WebMCPCallbacks): WebMCPTool[] {
     },
     {
       name: "get_go_game_state",
-      description:
+      description: toolDescription(
         "Read the phase, revision, action required, compact ASCII board with standard Go coordinates, turn, scoring, messages, captures, and move log.",
+        "{ ok: true, phase: string, revision: integer, latestHumanMessageId: integer, actionRequired: string, ... }",
+      ),
       inputSchema: toolSchema(),
       execute: () => callbacks.getGameState(),
       annotations: { readOnlyHint: true },
     },
     {
       name: "wait_for_go_turn",
-      description:
+      description: toolDescription(
         "Wait without polling while queued, during setup, or on the human turn. Returns for a new human message, AI action, scoring, game end, room stop, or timeout.",
+        '{ ok: true, waitStatus: "ready" | "waiting" | "stopped", waitReason: string, phase: string, revision: integer, ... }',
+      ),
       inputSchema: toolSchema(
         {
           afterRevision: {
@@ -262,23 +260,24 @@ function createTools(callbacks: WebMCPCallbacks): WebMCPTool[] {
     },
     {
       name: "play_go_move",
-      description:
-        "Play a legal AI move. Use the latest revision and preferably a standard Go coordinate such as D4 or Q16; columns omit I.",
+      description: toolDescription(
+        "Play a legal AI move using exactly one standard Go coordinate such as D4 or Q16; columns omit I. Do not send x/y fields.",
+        '{ ok: true, revision: integer, latestHumanMessageId: integer, phase: "playing" | "finished" }',
+      ),
       inputSchema: toolSchema(
         {
-          x: { type: "integer", minimum: 0, maximum: 18 },
-          y: { type: "integer", minimum: 0, maximum: 18 },
           coordinate: {
             type: "string",
             pattern: "^[A-HJ-T](1[0-9]|[1-9])$",
-            description: "Alternative coordinate; Go coordinates omit I.",
+            description:
+              "Required standard Go coordinate. Use a letter A-H or J-T plus row 1-19; x/y fields are not accepted.",
           },
           ...revisionSchema(),
         },
-        ["expectedRevision"],
+        ["coordinate", "expectedRevision"],
       ),
       execute: (input) => {
-        const point = parsePoint(input);
+        const point = parseCoordinate(input);
         const revision = parseRevision(input);
         if (!point) return { ok: false, error: "invalid_coordinate" };
         return revision === null
@@ -288,8 +287,10 @@ function createTools(callbacks: WebMCPCallbacks): WebMCPTool[] {
     },
     {
       name: "pass_go_turn",
-      description:
+      description: toolDescription(
         "Pass the AI turn using the latest revision. Two consecutive passes finish and score the game.",
+        '{ ok: true, revision: integer, latestHumanMessageId: integer, phase: "playing" | "finished" }',
+      ),
       inputSchema: toolSchema(revisionSchema(), ["expectedRevision"]),
       execute: (input) => {
         const revision = parseRevision(input);
@@ -300,7 +301,10 @@ function createTools(callbacks: WebMCPCallbacks): WebMCPTool[] {
     },
     {
       name: "resign_go_game",
-      description: "Resign the current game using the latest revision.",
+      description: toolDescription(
+        "Resign the current game using the latest revision.",
+        '{ ok: true, revision: integer, latestHumanMessageId: integer, phase: "finished" }',
+      ),
       inputSchema: toolSchema(revisionSchema(), ["expectedRevision"]),
       execute: (input) => {
         const revision = parseRevision(input);
@@ -311,8 +315,10 @@ function createTools(callbacks: WebMCPCallbacks): WebMCPTool[] {
     },
     {
       name: "respond_go_scoring",
-      description:
+      description: toolDescription(
         "Accept or reject the human scoring request using its latest revision. Acceptance ends the game with Chinese-style area scoring and White +7.5 komi.",
+        '{ ok: true, revision: integer, latestHumanMessageId: integer, phase: "playing" | "finished" }',
+      ),
       inputSchema: toolSchema(
         {
           decision: { type: "string", enum: ["accept", "reject"] },
@@ -334,8 +340,10 @@ function createTools(callbacks: WebMCPCallbacks): WebMCPTool[] {
     },
     {
       name: "send_go_message",
-      description:
+      description: toolDescription(
         "Send one plain-text AI message to the human during the current game. Maximum 240 characters.",
+        "{ ok: true, messageId: integer, latestHumanMessageId: integer }",
+      ),
       inputSchema: toolSchema(
         {
           message: { type: "string", minLength: 1, maxLength: 240 },

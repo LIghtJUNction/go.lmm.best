@@ -3,6 +3,11 @@ import type { Point } from "./go.js";
 import { registerWebMCPTools, type WebMCPCallbacks } from "./webmcp.js";
 
 type RegisteredTool = {
+  description: string;
+  inputSchema: {
+    properties: Record<string, unknown>;
+    required?: string[];
+  };
   execute: (input: unknown) => unknown | Promise<unknown>;
 };
 
@@ -48,6 +53,23 @@ describe("WebMCP tool registration", () => {
     const dispose = registerWebMCPTools(callbacks, onStatus);
 
     await vi.waitFor(() => expect(tools.size).toBe(8));
+    for (const tool of tools.values()) {
+      expect(tool.description).toContain("Success result:");
+      expect(tool.description).toContain("Failure result:");
+    }
+    const playTool = tools.get("play_go_move");
+    expect(Object.keys(playTool?.inputSchema.properties ?? {})).toEqual([
+      "coordinate",
+      "expectedRevision",
+    ]);
+    expect(playTool?.inputSchema.required).toEqual([
+      "coordinate",
+      "expectedRevision",
+    ]);
+    expect(
+      playTool?.execute({ x: 3, y: 4, expectedRevision: 9 }),
+    ).toEqual({ ok: false, error: "invalid_coordinate" });
+
     await expect(tools.get("join_go_match")?.execute({})).resolves.toEqual({
       ok: false,
       error: "model_id_required",
