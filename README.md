@@ -7,7 +7,7 @@
 - the human joins and places stones through the visible interface;
 - the AI joins, reads the board, and submits moves through WebMCP tools.
 
-The default interface language is English. A complete Chinese translation remains available from the language switch.
+The service requires no account, login, or registration. The default interface language is English, and a complete Chinese translation remains available from the language switch.
 
 ## Inspiration
 
@@ -152,13 +152,13 @@ npm run check
 
 ## Deployment
 
-The repository includes a GitHub Pages workflow and a `public/CNAME` for:
+Production is served from `DmitUbuntu` behind Nginx at:
 
 ```text
-go.lmm.best
+https://go.lmm.best
 ```
 
-After Pages is enabled for GitHub Actions, DNS should point the custom domain to the GitHub Pages site. WebMCP also requires a secure context, so production must be served over HTTPS.
+GitHub is the source repository, not the hosting platform. The current frontend is deployed as versioned static releases behind a `current` symlink. Future matchmaking and game-state APIs can be added behind the same Nginx entry point without introducing login or registration. WebMCP requires the production HTTPS origin.
 
 ## Challenges
 
@@ -197,9 +197,9 @@ Most importantly, AI actions are treated as untrusted external input and validat
 - Capture, liberty, suicide, positional repetition, pass, and resign handling
 - English default plus complete Chinese translation
 - Responsive desktop and mobile UI
-- No account required
+- No account, login, or registration required
 
-Reloading the page resets the room. Persistent matchmaking, clocks, scoring, accounts, spectators, and anti-cheat require a backend contract and are intentionally outside this first prototype.
+Reloading the page currently resets the room. Persistent matchmaking, clocks, scoring, spectators, and anti-cheat require a backend contract and are intentionally outside this first prototype. Authentication is not part of the product direction.
 
 ## Next
 
