@@ -108,6 +108,36 @@
   --shadow-action-hover: 0 2px 4px rgb(32 37 31 / 16%), 0 10px 24px rgb(47 107 82 / 12%);
 }
 
+.dark {
+  color-scheme: dark;
+
+  --paper: #171a17;
+  --paper-raised: #20241f;
+  --paper-muted: #292d27;
+  --ink: #ece8dd;
+  --ink-muted: #aeb4aa;
+  --line: #3a4037;
+  --jade: #79ad91;
+  --jade-deep: #d5eadf;
+  --jade-soft: #2d4438;
+  --danger: #d8786b;
+
+  --input: #454b42;
+  --ring: #8abca1;
+  --accent: #2c312b;
+  --accent-foreground: #ece8dd;
+  --chart-2: #91b39d;
+  --chart-3: #dda969;
+  --sidebar: #1c201c;
+  --sidebar-foreground: var(--ink);
+  --board-light: #c28b4d;
+  --board-base: #a86e36;
+  --board-deep: #82502a;
+  --board-line: #4d3018;
+  --shadow-action: 0 1px 2px rgb(0 0 0 / 28%), 0 7px 18px rgb(0 0 0 / 16%);
+  --shadow-action-hover: 0 2px 4px rgb(0 0 0 / 34%), 0 10px 24px rgb(0 0 0 / 22%);
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -121,6 +151,9 @@
 
   body {
     @apply min-h-svh bg-background text-foreground;
+    transition:
+      background-color var(--motion-ui) var(--ease-out),
+      color var(--motion-fast) var(--ease-out);
     background-image: linear-gradient(
       to bottom,
       color-mix(in srgb, var(--paper-raised) 56%, transparent),

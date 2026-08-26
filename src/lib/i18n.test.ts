@@ -28,6 +28,9 @@ describe("AI invite capability guard", () => {
   it("stops English agents after one failed tool check", () => {
     const prompt = copy.en.agentInvitePrompt("https://go.lmm.best");
 
+    expect(prompt).toContain("same browser tab and session");
+    expect(prompt).toContain("do not open a new tab");
+    expect(prompt).toContain("Join the human queue");
     expect(prompt).toContain("exactly one capability check");
     expect(prompt).toContain("Do not web-search");
     expect(prompt).toContain("do not reload");
@@ -38,6 +41,9 @@ describe("AI invite capability guard", () => {
   it("stops Chinese agents after one failed tool check", () => {
     const prompt = copy.zh.agentInvitePrompt("https://go.lmm.best");
 
+    expect(prompt).toContain("同一个标签页和浏览器会话");
+    expect(prompt).toContain("不要打开新标签页");
+    expect(prompt).toContain("加入人类队列");
     expect(prompt).toContain("只做一次能力检查");
     expect(prompt).toContain("不要搜索网页");
     expect(prompt).toContain("不要刷新");

@@ -1,17 +1,31 @@
-import { memo, type ReactNode, useEffect, useRef, useState } from "react";
+import {
+  memo,
+  type CSSProperties,
+  type ReactNode,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import {
   ArrowRightIcon,
   ArrowUpRightIcon,
   BotIcon,
+  CableIcon,
   CheckIcon,
   CircleIcon,
   CopyIcon,
+  ExternalLinkIcon,
   FlagIcon,
+  GitForkIcon,
   InfoIcon,
   LanguagesIcon,
   ListTreeIcon,
   LoaderCircleIcon,
+  MessageCircleIcon,
+  MoonIcon,
   RotateCcwIcon,
+  ScaleIcon,
+  SunIcon,
   UserIcon,
   WifiIcon,
   WifiOffIcon,
@@ -24,14 +38,22 @@ import type {
   MatchMode,
   Move,
   PopulationStats,
+  QueueSide,
   RoomView,
-} from "@/App";
+  Theme,
+} from "@/lib/session";
 import {
   Alert,
   AlertAction,
   AlertDescription,
   AlertTitle,
 } from "@/components/ui/alert";
+import {
+  DanmakuLayer,
+  GameActions,
+  GameChat,
+  ScoreSummary,
+} from "@/components/game-social";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -263,20 +285,140 @@ function AgentInviteButton({
   );
 }
 
+function WebMCPStatusBadge({
+  t,
+  status,
+  showContext = false,
+}: {
+  t: Copy;
+  status: WebMCPStatus;
+  showContext?: boolean;
+}) {
+  const connected = status === "available";
+  const bridge = status === "bridge";
+  const checking = status === "checking";
+
+  return (
+    <Badge
+      variant={connected || bridge ? "secondary" : "outline"}
+      role="status"
+      aria-live="polite"
+    >
+      {checking ? (
+        <LoaderCircleIcon className="motion-safe:animate-spin" />
+      ) : connected ? (
+        <WifiIcon />
+      ) : bridge ? (
+        <CableIcon />
+      ) : (
+        <WifiOffIcon />
+      )}
+      {showContext && <span className="hidden sm:inline">WebMCP</span>}
+      <span className={showContext ? "hidden sm:inline" : undefined}>
+        {checking
+          ? t.webmcpChecking
+          : connected
+            ? t.connected
+            : bridge
+              ? t.webmcpBridgeReady
+              : t.offline}
+      </span>
+    </Badge>
+  );
+}
+
+function WebMCPReadiness({ t, status }: { t: Copy; status: WebMCPStatus }) {
+  const reducedMotion = useReducedMotion();
+  const connected = status === "available";
+  const bridge = status === "bridge";
+  const checking = status === "checking";
+  const title = checking
+    ? t.webmcpChecking
+    : connected
+      ? t.webmcpSessionReady
+      : bridge
+        ? t.webmcpBridgeReady
+        : t.webmcpSessionUnavailable;
+  const description = checking
+    ? t.webmcpCheckingDescription
+    : connected
+      ? t.webmcpSessionReadyDescription
+      : bridge
+        ? t.webmcpBridgeDescription
+        : t.webmcpSessionUnavailableDescription;
+
+  return (
+    <m.div
+      key={status}
+      className="flex max-w-xl items-start gap-3"
+      data-webmcp-status={status}
+      role="status"
+      aria-live="polite"
+      initial={reducedMotion ? { opacity: 0 } : { opacity: 0, y: 4 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={
+        reducedMotion
+          ? { duration: 0.1 }
+          : { type: "spring", bounce: 0, duration: 0.24 }
+      }
+    >
+      <span
+        className={cn(
+          "mt-0.5 inline-flex size-8 shrink-0 items-center justify-center rounded-full",
+          connected || bridge
+            ? "bg-secondary text-secondary-foreground"
+            : "bg-muted text-muted-foreground",
+        )}
+        aria-hidden="true"
+      >
+        {checking ? (
+          <LoaderCircleIcon className="size-4 motion-safe:animate-spin" />
+        ) : connected ? (
+          <CheckIcon className="size-4" />
+        ) : bridge ? (
+          <CableIcon className="size-4" />
+        ) : (
+          <WifiOffIcon className="size-4" />
+        )}
+      </span>
+      <div className="min-w-0">
+        <p className="font-medium text-foreground">{title}</p>
+        <p className="mt-0.5 text-sm leading-6 text-muted-foreground">
+          {description}
+        </p>
+        {!checking && !connected && !bridge && (
+          <a
+            className="mt-1.5 inline-flex items-center gap-1 text-sm font-medium text-primary underline decoration-primary/30 underline-offset-4 transition-colors hover:decoration-primary"
+            href="https://developer.chrome.com/docs/ai/webmcp"
+            target="_blank"
+            rel="noreferrer"
+          >
+            {t.webmcpSetupAction}
+            <ExternalLinkIcon className="size-3.5" />
+          </a>
+        )}
+      </div>
+    </m.div>
+  );
+}
+
 export function Header({
   t,
   language,
+  theme,
   webmcpStatus,
   onLanguageToggle,
+  onThemeToggle,
   onReturnHome,
 }: {
   t: Copy;
   language: Language;
+  theme: Theme;
   webmcpStatus: WebMCPStatus;
   onLanguageToggle: () => void;
+  onThemeToggle: () => void;
   onReturnHome: () => void;
 }) {
-  const connected = webmcpStatus === "available";
   return (
     <header className="border-b bg-background/95">
       <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
@@ -299,11 +441,27 @@ export function Header({
           </span>
         </Button>
         <div className="flex items-center gap-2">
-          <Badge variant={connected ? "secondary" : "outline"}>
-            {connected ? <WifiIcon /> : <WifiOffIcon />}
-            <span className="hidden sm:inline">WebMCP</span>
-            {connected ? t.connected : t.offline}
-          </Badge>
+          <WebMCPStatusBadge t={t} status={webmcpStatus} showContext />
+          <Button
+            variant="outline"
+            size="icon-sm"
+            onClick={onThemeToggle}
+            aria-label={theme === "light" ? t.switchToDark : t.switchToLight}
+            title={theme === "light" ? t.switchToDark : t.switchToLight}
+          >
+            <AnimatePresence mode="popLayout" initial={false}>
+              <m.span
+                key={theme}
+                className="inline-flex"
+                initial={{ opacity: 0, rotate: -18, scale: 0.8 }}
+                animate={{ opacity: 1, rotate: 0, scale: 1 }}
+                exit={{ opacity: 0, rotate: 18, scale: 0.8 }}
+                transition={{ type: "spring", bounce: 0, duration: 0.22 }}
+              >
+                {theme === "light" ? <MoonIcon /> : <SunIcon />}
+              </m.span>
+            </AnimatePresence>
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -385,7 +543,6 @@ export function Lobby({
   onStartMatch: () => void;
   onStartDemo: () => void;
 }) {
-  const connected = webmcpStatus === "available";
   return (
     <PageTransition
       state="idle"
@@ -418,12 +575,7 @@ export function Lobby({
             {t.copyAgentInviteHint}
           </p>
         </div>
-        <div>
-          <Badge variant={connected ? "secondary" : "outline"}>
-            {connected ? <WifiIcon /> : <WifiOffIcon />}
-            {connected ? t.webmcpReady : t.demoHint}
-          </Badge>
-        </div>
+        <WebMCPReadiness t={t} status={webmcpStatus} />
       </div>
       <BoardPreview t={t} />
       <HowItWorks t={t} />
@@ -528,46 +680,52 @@ function BoardPreview({ t }: { t: Copy }) {
 export function Searching({
   t,
   elapsed,
+  queueSide,
+  aiModelId,
   webmcpStatus,
   population,
   onCancel,
   onStartDemo,
+  onJoinWaitingAi,
 }: {
   t: Copy;
   elapsed: number;
+  queueSide: Exclude<QueueSide, null>;
+  aiModelId: string | null;
   webmcpStatus: WebMCPStatus;
   population: PopulationStats;
   onCancel: () => void;
   onStartDemo: () => void;
+  onJoinWaitingAi: () => void;
 }) {
-  const connected = webmcpStatus === "available";
   const reducedMotion = useReducedMotion();
+  const aiWaiting = queueSide === "ai";
   return (
     <PageTransition
       state="searching"
-      className="mx-auto flex max-w-5xl flex-col gap-12 py-14 lg:py-20"
+      className="mx-auto flex max-w-5xl flex-col gap-8 py-8 sm:gap-12 sm:py-14 lg:py-20"
     >
-      <div className="mx-auto flex max-w-2xl flex-col items-center gap-4 text-center">
+      <div className="mx-auto flex max-w-2xl flex-col items-center gap-3 text-center sm:gap-4">
         <Badge variant="secondary">
           <LoaderCircleIcon className="motion-safe:animate-spin" />
           {t.waiting}
         </Badge>
         <h1 className="text-4xl font-medium tracking-tight sm:text-5xl">
-          {t.waitingTitle}
+          {aiWaiting ? t.waitingForHumanTitle : t.waitingTitle}
         </h1>
         <p className="text-base leading-7 text-muted-foreground">
-          {t.waitingDescription}
+          {aiWaiting ? t.waitingForHumanDescription : t.waitingDescription}
         </p>
       </div>
-      <div className="grid gap-10 lg:grid-cols-[1fr_auto_1fr] lg:gap-12">
-        <div className="flex flex-col gap-8">
+      <div className="grid gap-8 lg:grid-cols-[1fr_auto_1fr] lg:gap-12">
+        <div className="flex flex-col gap-6 sm:gap-8">
           <PopulationOverview t={t} stats={population} compact />
           <Separator />
           <section className="flex flex-col gap-5">
             <div>
               <h2 className="text-xl font-medium">{t.statusLabel}</h2>
               <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                {t.statusWaiting}
+                {aiWaiting ? t.aiWaitingStatus : t.statusWaiting}
               </p>
             </div>
             <div className="grid grid-cols-2 gap-8">
@@ -593,40 +751,63 @@ export function Searching({
                 {t.cancelMatch}
                 <XIcon data-icon="inline-end" />
               </Button>
-              <Button variant="ghost" onClick={onStartDemo}>
-                {t.viewDemo}
-                <ArrowRightIcon data-icon="inline-end" />
-              </Button>
+              {!aiWaiting && (
+                <Button variant="ghost" onClick={onStartDemo}>
+                  {t.viewDemo}
+                  <ArrowRightIcon data-icon="inline-end" />
+                </Button>
+              )}
             </div>
           </section>
         </div>
         <Separator className="lg:hidden" />
         <Separator orientation="vertical" className="hidden lg:block" />
-        <section className="flex flex-col gap-6">
-          <div className="flex items-start justify-between gap-4">
+        {aiWaiting ? (
+          <section className="flex flex-col gap-6">
             <div>
-              <h2 className="text-xl font-medium">{t.aiCallHint}</h2>
+              <h2 className="text-xl font-medium">{t.matchedWith}</h2>
               <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                {t.toolsDescription}
+                {t.matchFoundDescription}
               </p>
             </div>
-            <Badge variant={connected ? "secondary" : "outline"}>
-              {connected ? t.connected : t.offline}
-            </Badge>
-          </div>
-          <div className="flex flex-col gap-2">
-            <AgentInviteButton
-              t={t}
-              variant="default"
-              className="w-full"
-            />
-            <p className="text-sm leading-6 text-muted-foreground">
-              {t.copyAgentInviteHint}
-            </p>
-          </div>
-          <ItemGroup className="gap-2">
-            {[t.agentJoinStepOne, t.agentJoinStepTwo, t.agentJoinStepThree].map(
-              (step, index) => (
+            <Item>
+              <ItemMedia variant="icon">
+                <BotIcon />
+              </ItemMedia>
+              <ItemContent>
+                <ItemTitle>{aiModelId ?? "WebMCP AI"}</ItemTitle>
+                <ItemDescription>{t.aiWaitingStatus}</ItemDescription>
+              </ItemContent>
+            </Item>
+            <Button size="lg" onClick={onJoinWaitingAi}>
+              {t.joinWaitingAi}
+              <ArrowRightIcon data-icon="inline-end" />
+            </Button>
+            <WebMCPReadiness t={t} status={webmcpStatus} />
+          </section>
+        ) : (
+          <section className="flex flex-col gap-6">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-xl font-medium">{t.aiCallHint}</h2>
+                <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                  {t.toolsDescription}
+                </p>
+              </div>
+              <WebMCPStatusBadge t={t} status={webmcpStatus} />
+            </div>
+            <div className="flex flex-col gap-2">
+              <AgentInviteButton t={t} variant="default" className="w-full" />
+              <p className="text-sm leading-6 text-muted-foreground">
+                {t.copyAgentInviteHint}
+              </p>
+            </div>
+            <ItemGroup className="gap-2">
+              {[
+                t.agentJoinStepOne,
+                t.agentJoinStepTwo,
+                t.agentJoinStepThree,
+              ].map((step, index) => (
                 <m.div
                   key={step}
                   initial={
@@ -653,17 +834,14 @@ export function Searching({
                     </ItemContent>
                   </Item>
                 </m.div>
-              ),
-            )}
-          </ItemGroup>
-          <pre className="overflow-x-auto rounded-lg bg-muted p-4 text-sm">
-            <code>{JOIN_TOOL_EXAMPLE}</code>
-          </pre>
-          <Badge variant={connected ? "secondary" : "outline"}>
-            {connected ? <WifiIcon /> : <WifiOffIcon />}
-            {connected ? t.listening : t.webmcpUnsupported}
-          </Badge>
-        </section>
+              ))}
+            </ItemGroup>
+            <pre className="overflow-x-auto rounded-lg bg-muted p-4 text-sm">
+              <code>{JOIN_TOOL_EXAMPLE}</code>
+            </pre>
+            <WebMCPReadiness t={t} status={webmcpStatus} />
+          </section>
+        )}
       </div>
     </PageTransition>
   );
@@ -677,9 +855,14 @@ export function GameRoom({
   matchMode,
   webmcpStatus,
   lastToolCall,
+  danmakuEnabled,
+  onDanmakuToggle,
   onMove,
   onPass,
   onResign,
+  onRequestScoring,
+  onWithdrawScoring,
+  onSendMessage,
   onReturnLobby,
   onNewGame,
 }: {
@@ -690,87 +873,127 @@ export function GameRoom({
   matchMode: MatchMode;
   webmcpStatus: WebMCPStatus;
   lastToolCall: string | null;
+  danmakuEnabled: boolean;
+  onDanmakuToggle: (enabled: boolean) => void;
   onMove: (point: Point) => void;
   onPass: () => void;
   onResign: () => void;
+  onRequestScoring: () => void;
+  onWithdrawScoring: () => void;
+  onSendMessage: (message: string) => boolean;
   onReturnLobby: () => void;
   onNewGame: () => void;
 }) {
   const isFinished = view === "finished";
-  const isHumanTurn = !isFinished && game.turn === game.humanColor;
+  const scoringPending = game.scoring.status === "pending";
+  const isHumanTurn =
+    !isFinished && !scoringPending && game.turn === game.humanColor;
   const finishedText =
     game.endReason === "human-resigned"
       ? t.finishedByResignYou
       : game.endReason === "ai-resigned"
         ? t.finishedByResignAi
-        : t.finishedByPass;
+        : game.endReason === "scored"
+          ? t.finishedByScore
+          : t.finishedByPass;
   const statusText = isFinished
     ? finishedText
-    : isHumanTurn
-      ? t.statusYourTurn
-      : t.statusAiTurn;
+    : scoringPending
+      ? t.scoringPending
+      : game.lastScoringDecision === "rejected"
+        ? t.scoringRejected
+        : isHumanTurn
+          ? t.statusYourTurn
+          : t.statusAiTurn;
   const modeText = matchMode === "demo" ? t.demoMatch : t.gameLive;
+  const largeBoard = game.boardSize > 9;
 
   return (
     <PageTransition
       state={isFinished ? "finished" : "playing"}
-      className="grid gap-12 py-10 xl:grid-cols-[minmax(0,1fr)_20rem] xl:gap-16"
+      className="grid gap-8 py-6 sm:py-10 xl:grid-cols-[minmax(0,1fr)_21rem] xl:gap-14"
     >
-      <div className="flex min-w-0 flex-col gap-7">
+      <div className="flex min-w-0 flex-col gap-6 sm:gap-7">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <h1 className="text-4xl font-medium tracking-tight sm:text-5xl">
+            <h1 className="text-3xl font-medium tracking-tight sm:text-5xl">
               {t.gameTitle}
             </h1>
-            <p className="mt-2 text-sm text-muted-foreground">
-              {t.gameSubtitle}
+            <p className="mt-1.5 text-sm text-muted-foreground">
+              {t.gameSubtitle(game.boardSize)}
             </p>
           </div>
           <Badge variant={isFinished ? "outline" : "secondary"}>
             {isFinished ? t.finishedTitle : modeText}
           </Badge>
         </div>
-        <section className="flex flex-col gap-5">
+        <section className="flex flex-col gap-4 sm:gap-5">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <h2 className="text-xl font-medium">Room 01</h2>
+              <h2 className="text-lg font-medium sm:text-xl">Room 01</h2>
               <p className="mt-1 text-sm text-muted-foreground">
                 {game.aiModelId
                   ? `${t.human} vs ${game.aiModelId}`
-                  : t.gameSubtitle}
+                  : t.gameSubtitle(game.boardSize)}
               </p>
             </div>
             <Badge variant="outline">
               {isFinished
                 ? t.finishedTitle
-                : game.turn === game.humanColor
-                  ? t.turnYou
-                  : t.turnAi}
+                : scoringPending
+                  ? t.scoringPendingBadge
+                  : game.turn === game.humanColor
+                    ? t.turnYou
+                    : t.turnAi}
             </Badge>
           </div>
-          <m.div
-            className="mx-auto w-full max-w-[min(100%,70vh)]"
-            layout
-            transition={{ type: "spring", bounce: 0, duration: 0.35 }}
+          <div
+            className={cn(
+              "-mx-4 overflow-x-auto overscroll-x-contain sm:mx-0",
+              largeBoard && "pb-2",
+            )}
           >
-            <Board
-              board={game.board}
-              interactive={isHumanTurn}
-              lastMove={game.moves.at(-1)?.point}
-              onMove={onMove}
-              t={t}
-            />
-          </m.div>
-          <div className="flex items-center justify-between gap-4 text-sm text-muted-foreground">
-            <span className="flex items-center gap-2">
-              <InfoIcon />
+            <m.div
+              className={cn(
+                "relative aspect-square shrink-0 sm:mx-auto sm:w-full sm:max-w-[min(100%,70vh)]",
+                game.boardSize === 9
+                  ? "w-full min-w-full"
+                  : game.boardSize === 13
+                    ? "w-[32rem]"
+                    : "w-[46rem]",
+              )}
+              layout
+              transition={{ type: "spring", bounce: 0, duration: 0.35 }}
+            >
+              <Board
+                board={game.board}
+                interactive={isHumanTurn}
+                lastMove={game.moves.at(-1)?.point}
+                onMove={onMove}
+                t={t}
+              />
+              <DanmakuLayer messages={game.messages} enabled={danmakuEnabled} />
+            </m.div>
+          </div>
+          {largeBoard && (
+            <p className="text-center text-xs text-muted-foreground sm:hidden">
+              {t.panBoardHint}
+            </p>
+          )}
+          <div className="flex items-start justify-between gap-4 text-sm text-muted-foreground">
+            <span className="flex items-start gap-2">
+              <InfoIcon className="mt-0.5 shrink-0" />
               {isFinished
                 ? t.statusFinished
-                : isHumanTurn
-                  ? t.tipContent
-                  : t.statusAiTurn}
+                : scoringPending
+                  ? t.scoringPending
+                  : isHumanTurn
+                    ? t.tipContent
+                    : t.statusAiTurn}
             </span>
-            <Badge variant="outline">9 × 9</Badge>
+            <Badge variant="outline" className="shrink-0">
+              {game.boardSize} × {game.boardSize}
+            </Badge>
           </div>
         </section>
         <Separator />
@@ -780,9 +1003,11 @@ export function GameRoom({
             <h2 className="font-medium">
               {isFinished
                 ? t.finishedTitle
-                : isHumanTurn
-                  ? t.turnYou
-                  : t.turnAi}
+                : scoringPending
+                  ? t.requestScoring
+                  : isHumanTurn
+                    ? t.turnYou
+                    : t.turnAi}
             </h2>
             <p className="mt-1 text-sm leading-6 text-muted-foreground">
               {statusText}
@@ -790,19 +1015,46 @@ export function GameRoom({
           </div>
         </div>
       </div>
-      <aside className="flex flex-col gap-8 xl:border-l xl:pl-10">
+      <aside className="flex min-w-0 flex-col gap-6 xl:border-l xl:pl-10">
         <PlayerStack t={t} game={game} isFinished={isFinished} />
-        <Separator />
-        <ToolPanel
-          t={t}
-          webmcpStatus={webmcpStatus}
-          lastToolCall={lastToolCall}
-        />
-        <Separator />
-        <MoveLog t={t} language={language} moves={game.moves} />
-        <Separator />
-        {isFinished ? (
-          <div className="flex flex-col gap-2">
+        {!isFinished && (
+          <div className="order-1 xl:order-5">
+            <GameActions
+              t={t}
+              game={game}
+              isHumanTurn={isHumanTurn}
+              onPass={onPass}
+              onResign={onResign}
+              onRequestScoring={onRequestScoring}
+              onWithdrawScoring={onWithdrawScoring}
+            />
+          </div>
+        )}
+        <div className="order-2 border-t pt-6 xl:order-1">
+          <ScoreSummary t={t} game={game} />
+        </div>
+        <div className="order-3 border-t pt-6 xl:order-2">
+          <GameChat
+            t={t}
+            messages={game.messages}
+            danmakuEnabled={danmakuEnabled}
+            onDanmakuToggle={onDanmakuToggle}
+            onSendMessage={onSendMessage}
+            disabled={isFinished}
+          />
+        </div>
+        <div className="order-4 border-t pt-6 xl:order-3">
+          <MoveLog t={t} language={language} moves={game.moves} />
+        </div>
+        <div className="order-5 border-t pt-6 xl:order-4">
+          <ToolPanel
+            t={t}
+            webmcpStatus={webmcpStatus}
+            lastToolCall={lastToolCall}
+          />
+        </div>
+        {isFinished && (
+          <div className="order-6 flex flex-col gap-2 border-t pt-6">
             <Button size="lg" onClick={onNewGame}>
               {t.newMatch}
               <ArrowUpRightIcon data-icon="inline-end" />
@@ -810,17 +1062,6 @@ export function GameRoom({
             <Button variant="ghost" onClick={onReturnLobby}>
               {t.returnLobby}
               <ArrowRightIcon data-icon="inline-end" />
-            </Button>
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-2">
-            <Button variant="outline" onClick={onPass} disabled={!isHumanTurn}>
-              {t.pass}
-              <RotateCcwIcon data-icon="inline-end" />
-            </Button>
-            <Button variant="destructive" onClick={onResign}>
-              {t.resign}
-              <FlagIcon data-icon="inline-end" />
             </Button>
           </div>
         )}
@@ -915,24 +1156,28 @@ function ToolPanel({
   lastToolCall: string | null;
 }) {
   const tools = [
+    { icon: BotIcon, label: t.toolJoin, code: "join_go_match" },
     { icon: ListTreeIcon, label: t.toolState, code: "get_go_game_state" },
     { icon: CircleIcon, label: t.toolMove, code: "play_go_move" },
     { icon: RotateCcwIcon, label: t.toolPass, code: "pass_go_turn" },
     { icon: FlagIcon, label: t.toolResign, code: "resign_go_game" },
+    {
+      icon: ScaleIcon,
+      label: t.toolScoreResponse,
+      code: "respond_go_scoring",
+    },
+    { icon: MessageCircleIcon, label: t.toolSpeak, code: "send_go_message" },
   ];
-  const connected = webmcpStatus === "available";
   return (
     <section className="flex flex-col gap-5" id="tools">
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-col items-start gap-3">
         <div>
           <h2 className="text-xl font-medium">{t.toolsTitle}</h2>
           <p className="mt-1 text-sm leading-6 text-muted-foreground">
             {t.toolsDescription}
           </p>
         </div>
-        <Badge variant={connected ? "secondary" : "outline"}>
-          {connected ? t.connected : t.offline}
-        </Badge>
+        <WebMCPStatusBadge t={t} status={webmcpStatus} showContext />
       </div>
       <ItemGroup>
         {tools.map(({ icon: ToolIcon, label, code }) => (
@@ -1033,9 +1278,10 @@ export function ErrorNotice({
   onClose,
 }: {
   t: Copy;
-  message: string;
+  message: string | null;
   onClose: () => void;
 }) {
+  if (!message) return null;
   return (
     <m.div
       className="fixed right-4 bottom-4 w-[min(26rem,calc(100%-2rem))]"
@@ -1069,7 +1315,19 @@ export function SiteFooter({ t }: { t: Copy }) {
       <Separator />
       <div className="flex flex-col gap-2 pt-6 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
         <span>{t.footerNote}</span>
-        <span>go.lmm.best · WebMCP</span>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+          <a
+            className="inline-flex items-center gap-1.5 font-medium text-foreground underline decoration-border underline-offset-4 transition-colors hover:text-primary hover:decoration-primary"
+            href="https://github.com/LIghtJUNction/go.lmm.best"
+            target="_blank"
+            rel="noreferrer"
+          >
+            <GitForkIcon className="size-4" />
+            {t.sourceCode}
+            <ExternalLinkIcon className="size-3.5" />
+          </a>
+          <span>go.lmm.best · WebMCP</span>
+        </div>
       </div>
     </footer>
   );
@@ -1090,37 +1348,56 @@ const Board = memo(function Board({
 }) {
   const reducedMotion = useReducedMotion();
   const size = board.length;
-  const coordinates = "ABCDEFGHI";
+  const coordinates = "ABCDEFGHJKLMNOPQRST".slice(0, size).split("");
+  const starAxis =
+    size === 9 ? [2, 4, 6] : size === 13 ? [3, 6, 9] : [3, 9, 15];
+  const starPoints = starAxis.flatMap((y) =>
+    starAxis
+      .filter(
+        (x) =>
+          size !== 9 ||
+          (x === starAxis[1] && y === starAxis[1]) ||
+          (x !== starAxis[1] && y !== starAxis[1]),
+      )
+      .map((x) => ({ x, y })),
+  );
+  const positionStyle = (index: number) =>
+    ({
+      "--board-position": `${(index / (size - 1)) * 100}%`,
+    }) as CSSProperties;
+  const pointStyle = (x: number, y: number) =>
+    ({
+      "--board-x": `${(x / (size - 1)) * 100}%`,
+      "--board-y": `${(y / (size - 1)) * 100}%`,
+    }) as CSSProperties;
+  const surfaceStyle = {
+    "--board-size": size,
+    "--intersection-size": `${Math.min(10.4, 92 / (size - 1))}%`,
+  } as CSSProperties;
   return (
-    <div className="board-surface">
+    <div className="board-surface" style={surfaceStyle}>
       <div
         className="board-coordinates board-coordinates--top"
         aria-hidden="true"
       >
-        {coordinates
-          .slice(0, size)
-          .split("")
-          .map((letter) => (
-            <span key={letter}>{letter}</span>
-          ))}
+        {coordinates.map((letter) => (
+          <span key={letter}>{letter}</span>
+        ))}
       </div>
       <div
         className="board-coordinates board-coordinates--bottom"
         aria-hidden="true"
       >
-        {coordinates
-          .slice(0, size)
-          .split("")
-          .map((letter) => (
-            <span key={letter}>{letter}</span>
-          ))}
+        {coordinates.map((letter) => (
+          <span key={letter}>{letter}</span>
+        ))}
       </div>
       <div
         className="board-coordinates board-coordinates--left"
         aria-hidden="true"
       >
         {Array.from({ length: size }, (_, index) => (
-          <span key={index}>{index + 1}</span>
+          <span key={index}>{size - index}</span>
         ))}
       </div>
       <div
@@ -1128,7 +1405,7 @@ const Board = memo(function Board({
         aria-hidden="true"
       >
         {Array.from({ length: size }, (_, index) => (
-          <span key={index}>{index + 1}</span>
+          <span key={index}>{size - index}</span>
         ))}
       </div>
       <div className="go-board" role="grid" aria-label={t.ariaBoard}>
@@ -1136,24 +1413,22 @@ const Board = memo(function Board({
           {Array.from({ length: size }, (_, index) => (
             <span
               className="board-line board-line--vertical"
-              data-board-position={index}
+              style={positionStyle(index)}
               key={`v-${index}`}
             />
           ))}
           {Array.from({ length: size }, (_, index) => (
             <span
               className="board-line board-line--horizontal"
-              data-board-position={index}
+              style={positionStyle(index)}
               key={`h-${index}`}
             />
           ))}
         </div>
         <div className="star-points" aria-hidden="true">
-          {[2, 4, 6].flatMap((y) =>
-            [2, 4, 6].map((x) => (
-              <span key={`${x}-${y}`} data-board-x={x} data-board-y={y} />
-            )),
-          )}
+          {starPoints.map(({ x, y }) => (
+            <span key={`${x}-${y}`} style={pointStyle(x, y)} />
+          ))}
         </div>
         {board.map((row, y) =>
           row.map((cell, x) => {
@@ -1173,8 +1448,7 @@ const Board = memo(function Board({
                   cell && `has-${cell}`,
                   isLast && "is-last",
                 )}
-                data-board-x={x}
-                data-board-y={y}
+                style={pointStyle(x, y)}
                 onClick={() => onMove?.({ x, y })}
                 disabled={!interactive || Boolean(cell)}
                 aria-label={t.ariaIntersection(x, y, occupied)}

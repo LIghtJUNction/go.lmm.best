@@ -1,3 +1,5 @@
+export const WHITE_KOMI = 7.5;
+
 export type Stone = "black" | "white";
 export type Cell = Stone | null;
 export type Board = Cell[][];
@@ -19,6 +21,22 @@ export type MoveResult =
       ok: false;
       error: MoveError;
     };
+
+export type AreaScoreSide = {
+  stones: number;
+  territory: number;
+  total: number;
+};
+
+export type AreaScore = {
+  method: "chinese-tromp-taylor-area";
+  komi: number;
+  black: AreaScoreSide;
+  white: AreaScoreSide;
+  neutral: number;
+  winner: Stone | "tie";
+  margin: number;
+};
 
 export function createBoard(size = 9): Board {
   return Array.from({ length: size }, () => Array<Cell>(size).fill(null));
@@ -126,6 +144,75 @@ export function applyMove(
   }
 
   return { ok: true, board: nextBoard, captured };
+}
+
+export function calculateAreaScore(board: Board, komi = WHITE_KOMI): AreaScore {
+  const stones: Record<Stone, number> = { black: 0, white: 0 };
+  const territory: Record<Stone, number> = { black: 0, white: 0 };
+  const visited = new Set<string>();
+  let neutral = 0;
+
+  for (let y = 0; y < board.length; y += 1) {
+    for (let x = 0; x < board[y].length; x += 1) {
+      const cell = board[y][x];
+      if (cell) {
+        stones[cell] += 1;
+        continue;
+      }
+
+      const startKey = `${x}:${y}`;
+      if (visited.has(startKey)) continue;
+
+      const region: Point[] = [];
+      const borders = new Set<Stone>();
+      const stack: Point[] = [{ x, y }];
+
+      while (stack.length > 0) {
+        const point = stack.pop()!;
+        const key = `${point.x}:${point.y}`;
+        if (visited.has(key)) continue;
+        visited.add(key);
+        if (board[point.y][point.x] !== null) continue;
+        region.push(point);
+
+        for (const neighbor of neighbors(board, point)) {
+          const neighborStone = board[neighbor.y][neighbor.x];
+          if (neighborStone) borders.add(neighborStone);
+          else if (!visited.has(`${neighbor.x}:${neighbor.y}`)) {
+            stack.push(neighbor);
+          }
+        }
+      }
+
+      if (borders.size === 1) {
+        territory[[...borders][0]] += region.length;
+      } else {
+        neutral += region.length;
+      }
+    }
+  }
+
+  const blackTotal = stones.black + territory.black;
+  const whiteTotal = stones.white + territory.white + komi;
+  const difference = blackTotal - whiteTotal;
+
+  return {
+    method: "chinese-tromp-taylor-area",
+    komi,
+    black: {
+      stones: stones.black,
+      territory: territory.black,
+      total: blackTotal,
+    },
+    white: {
+      stones: stones.white,
+      territory: territory.white,
+      total: whiteTotal,
+    },
+    neutral,
+    winner: difference === 0 ? "tie" : difference > 0 ? "black" : "white",
+    margin: Math.abs(difference),
+  };
 }
 
 export function boardToRows(board: Board): string[][] {

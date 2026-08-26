@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   applyMove,
+  calculateAreaScore,
   createBoard,
   getGroup,
   getLiberties,
@@ -88,6 +89,47 @@ describe("Go rule engine", () => {
     expect(applyMove(board, { x: 3, y: 0 }, "white")).toEqual({
       ok: false,
       error: "occupied",
+    });
+  });
+
+  it("scores enclosed territory with Chinese-style area scoring", () => {
+    const board: Board = [
+      ["black", "black", "black"],
+      ["black", null, "black"],
+      ["black", "black", "black"],
+    ];
+
+    expect(calculateAreaScore(board, 0)).toMatchObject({
+      black: { stones: 8, territory: 1, total: 9 },
+      white: { stones: 0, territory: 0, total: 0 },
+      neutral: 0,
+      winner: "black",
+      margin: 9,
+    });
+  });
+
+  it("leaves shared empty regions neutral", () => {
+    const board: Board = [
+      ["black", null, "white"],
+      [null, null, null],
+      [null, null, null],
+    ];
+
+    expect(calculateAreaScore(board, 0)).toMatchObject({
+      black: { stones: 1, territory: 0, total: 1 },
+      white: { stones: 1, territory: 0, total: 1 },
+      neutral: 7,
+      winner: "tie",
+      margin: 0,
+    });
+  });
+
+  it("applies the default 7.5-point komi", () => {
+    expect(calculateAreaScore(createBoard(9))).toMatchObject({
+      komi: 7.5,
+      white: { total: 7.5 },
+      winner: "white",
+      margin: 7.5,
     });
   });
 });
