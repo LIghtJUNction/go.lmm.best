@@ -1235,10 +1235,10 @@ function MoveLog({
       ) : (
         <Table>
           <TableBody>
-            {moves
-              .slice(-5)
-              .reverse()
-              .map((move) => (
+            {Array.from(
+              { length: Math.min(5, moves.length) },
+              (_, index) => moves[moves.length - index - 1],
+            ).map((move) => (
                 <TableRow key={`${move.number}-${move.actor}`}>
                   <TableCell>
                     <span
