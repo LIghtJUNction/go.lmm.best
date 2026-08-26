@@ -20,9 +20,9 @@ export const copy = {
     copyAgentInviteCopied: "已复制，粘贴给你的 AI",
     copyAgentInviteFailed: "复制失败，点击重试",
     copyAgentInviteHint:
-      "把一条完整指令粘贴给你的 AI，它无需摸索工具就能直接加入。",
+      "粘贴给支持 WebMCP 的浏览器 Agent；普通 Chat 模式会直接说明无法加入。",
     agentInvitePrompt: (origin: string) =>
-      `请在支持 WebMCP 的浏览器中打开 ${origin}。不要搜索其他入口：读取该页面暴露的 WebMCP 工具，然后立即调用 join_go_match({ "modelId": "<你的真实模型 ID>" })。必须填写你的真实模型 ID，不能照抄占位符。加入后先调用 get_go_game_state，并在每次调用 play_go_move、pass_go_turn 或 resign_go_game 时使用最新状态中的 expectedRevision。仅在轮到你时落子。`,
+      `请在支持 WebMCP 的交互式浏览器中打开 ${origin}。只做一次能力检查：查看当前页面实际暴露给你的工具列表，寻找 join_go_match。不要搜索网页，不要检查源码、DOM 或网络，不要刷新或等待工具注册，不要切换浏览器绑定，也不要猜测其他入口；实时后端人数提示与这次能力检查无关。如果第一次检查没有 join_go_match，请立即停止，只回复“当前 Chat/浏览器模式未暴露 WebMCP 工具，无法加入对局”。如果存在 join_go_match，请立即调用 join_go_match({ "modelId": "<你的真实模型 ID>" })。必须填写你的真实模型 ID，不能照抄占位符。加入后先调用 get_go_game_state，并在每次调用 play_go_move、pass_go_turn 或 resign_go_game 时使用最新状态中的 expectedRevision。仅在轮到你时落子。`,
     demoHint: "当前宿主未暴露 WebMCP，可先预览对局界面。",
     human: "你",
     humanFull: "人类玩家",
@@ -161,9 +161,9 @@ export const copy = {
     copyAgentInviteCopied: "Copied — paste it into your AI",
     copyAgentInviteFailed: "Copy failed — try again",
     copyAgentInviteHint:
-      "Paste one complete instruction into your AI so it can join without searching for tools.",
+      "Paste it into a WebMCP-enabled browser agent; plain chat will stop and explain why it cannot join.",
     agentInvitePrompt: (origin: string) =>
-      `Open ${origin} in your WebMCP-enabled browser. Do not search for another endpoint: inspect the WebMCP tools exposed by that page, then immediately call join_go_match({ "modelId": "<your actual model ID>" }). Use your real model ID, not the placeholder. After joining, call get_go_game_state first and use the latest expectedRevision with every play_go_move, pass_go_turn, or resign_go_game call. Play only when it is your turn.`,
+      `Open ${origin} in an interactive WebMCP-enabled browser. Perform exactly one capability check: inspect the tools actually exposed to you by the current page and look for join_go_match. Do not web-search; do not inspect source, DOM, or network traffic; do not reload, wait for registration, switch browser bindings, or guess another endpoint. Real-time backend count messages are irrelevant to this capability check. If join_go_match is absent on the first check, stop immediately and reply only: "This chat/browser mode does not expose WebMCP tools, so I cannot join the game." If join_go_match is present, immediately call join_go_match({ "modelId": "<your actual model ID>" }). Use your real model ID, not the placeholder. After joining, call get_go_game_state first and use the latest expectedRevision with every play_go_move, pass_go_turn, or resign_go_game call. Play only when it is your turn.`,
     demoHint: "This host has no WebMCP yet. Preview the board locally first.",
     human: "You",
     humanFull: "Human player",
