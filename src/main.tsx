@@ -1,11 +1,24 @@
-import { StrictMode } from "react";
+import { lazy, StrictMode, Suspense } from "react";
 import { createRoot } from "react-dom/client";
 import "@fontsource-variable/newsreader/wght.css";
 import "./index.css";
-import App from "./App";
+import { shareIdFromPath } from "./lib/share-route";
 
-createRoot(document.getElementById("root")!).render(
+const App = lazy(() => import("./App"));
+const SpectatorApp = lazy(() => import("./SpectatorApp"));
+
+const watchRoute =
+  window.location.pathname === "/watch" ||
+  window.location.pathname.startsWith("/watch/");
+const shareId = shareIdFromPath(window.location.pathname);
+
+const root = document.querySelector<HTMLElement>("#root");
+if (!root) throw new Error("Missing application root");
+
+createRoot(root).render(
   <StrictMode>
-    <App />
+    <Suspense fallback={<div className="min-h-svh bg-background" />}>
+      {watchRoute ? <SpectatorApp shareId={shareId ?? "invalid"} /> : <App />}
+    </Suspense>
   </StrictMode>,
 );

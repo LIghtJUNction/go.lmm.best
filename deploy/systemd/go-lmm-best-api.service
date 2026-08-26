@@ -15,7 +15,11 @@ WorkingDirectory=/var/lib/go-lmm.best
 
 Environment=HOST=127.0.0.1
 Environment=PORT=8787
+Environment=APP_ORIGIN=https://go.lmm.best
 Environment=DATABASE_PATH=/var/lib/go-lmm.best/go.sqlite3
+Environment=MAX_STORED_SHARES=10000
+Environment=MAX_SPECTATORS_PER_SHARE=50
+Environment=MAX_SPECTATORS_GLOBAL=1000
 EnvironmentFile=-/etc/go-lmm-best-api.env
 ExecStart=/opt/go-lmm.best/bin/go-lmm-best-api
 

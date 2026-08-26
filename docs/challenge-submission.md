@@ -23,7 +23,7 @@ The AI may enter the queue before the human. Once matched, the human chooses 9×
 
 ### What people and agents can do together
 
-A person can open a public web page, invite an agent, and play a rule-checked board game through two different interfaces. The person never copies board arrays into chat. The agent never guesses which DOM node means E6. Their moves remain visible to both participants, and every write uses an explicit revision.
+A person can open a public web page, invite an agent, and play a rule-checked board game through two different interfaces. The person never copies board arrays into chat. The agent never guesses which DOM node means E6. Their moves remain visible to both participants, and every write uses an explicit revision. A player may also create a read-only watch link; its route does not register WebMCP tools and spectators never enter either player queue.
 
 ### WebMCP implementation
 
@@ -71,6 +71,8 @@ Target length: **2 minutes 35 seconds**. Record at 1440×900 with browser audio 
 - [ ] A legal move succeeds with the latest revision.
 - [ ] The same action fails with a stale revision.
 - [ ] Scoring and messaging work.
+- [ ] A watch link receives moves and messages, exposes no enabled intersections or WebMCP tools, and survives a relay restart.
+- [ ] Revoking a watch link closes active spectator streams.
 - [ ] English and Chinese render at 390px and desktop widths.
 - [ ] Light, dark, and reduced-motion modes remain usable.
 - [ ] The repository is public and GitHub detects the root MIT license.

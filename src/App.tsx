@@ -11,6 +11,9 @@ import {
 } from "@/components/room-ui";
 import { LivePopulationStrip } from "@/components/live-population";
 import { MatchSetup } from "@/components/match-setup";
+import { ShareControls } from "@/components/share-controls";
+import { useGameShare } from "@/hooks/use-game-share";
+import { useInterfacePreferences } from "@/hooks/use-interface-preferences";
 import {
   formatGoBoardForAgent,
   formatGoCoordinate,
@@ -18,6 +21,8 @@ import {
   type Point,
 } from "@/lib/go";
 import { copy, type Language } from "@/lib/i18n";
+import { initialLanguage, initialTheme } from "@/lib/preferences";
+import { createShareSnapshot } from "@/lib/share";
 import {
   appendMessage,
   createGame,
@@ -81,10 +86,6 @@ function errorKeyFor(error: SessionError): ErrorKey {
   return errors[error];
 }
 
-function initialTheme(): Theme {
-  return document.documentElement.classList.contains("dark") ? "dark" : "light";
-}
-
 function latestHumanMessageId(game: GameState) {
   for (let index = game.messages.length - 1; index >= 0; index -= 1) {
     if (game.messages[index].actor === "human") return game.messages[index].id;
@@ -100,12 +101,10 @@ type WaitOutcome =
   | { waitStatus: "waiting"; waitReason: "timeout" }
   | { waitStatus: "stopped"; waitReason: "room_stopped" };
 
-type WaitReadiness =
-  | Exclude<WaitOutcome, { waitStatus: "waiting" }>
-  | null;
+type WaitReadiness = Exclude<WaitOutcome, { waitStatus: "waiting" }> | null;
 
 function App() {
-  const [language, setLanguage] = useState<Language>("en");
+  const [language, setLanguage] = useState<Language>(initialLanguage);
   const [theme, setTheme] = useState<Theme>(initialTheme);
   const [view, setView] = useState<RoomView>("idle");
   const [matchMode, setMatchMode] = useState<MatchMode>("real");
@@ -123,6 +122,17 @@ function App() {
 
   const t = useMemo(() => copy[language], [language]);
   const errorMessage = errorKey ? t[errorKey] : null;
+  const shareSnapshot = useMemo(
+    () => createShareSnapshot(game, view, matchMode),
+    [game, matchMode, view],
+  );
+  const {
+    state: shareState,
+    create: createShare,
+    retry: retryShare,
+    stop: stopShare,
+    detach: detachShare,
+  } = useGameShare(shareSnapshot);
   const viewRef = useRef(view);
   const queueSideRef = useRef(queueSide);
   const gameRef = useRef(game);
@@ -180,20 +190,7 @@ function App() {
     [commitGame],
   );
 
-  useEffect(() => {
-    document.documentElement.lang = language === "zh" ? "zh-CN" : "en";
-  }, [language]);
-
-  useEffect(() => {
-    const root = document.documentElement;
-    root.classList.toggle("dark", theme === "dark");
-    root.dataset.theme = theme;
-    root.style.colorScheme = theme;
-    localStorage.setItem("go-lmm-theme", theme);
-    document
-      .querySelector('meta[name="theme-color"]')
-      ?.setAttribute("content", theme === "dark" ? "#171a17" : "#f4f1e8");
-  }, [theme]);
+  useInterfacePreferences(language, theme);
 
   useEffect(() => {
     localStorage.setItem("go-lmm-danmaku", danmakuEnabled ? "on" : "off");
@@ -211,7 +208,14 @@ function App() {
     return () => window.clearInterval(interval);
   }, [queueStartedAt, view]);
 
-  const resetRoom = useCallback(() => {
+  const resetRoom = useCallback(async () => {
+    if (viewRef.current === "playing") {
+      const stopped = await stopShare();
+      if (!stopped) return;
+    } else if (viewRef.current === "finished") {
+      const detached = await detachShare();
+      if (!detached) return;
+    }
     const nextGame = createGame();
     commitGame(nextGame);
     changeQueueSide(null);
@@ -221,7 +225,7 @@ function App() {
     setLastToolCall(null);
     setWaitingPreview(false);
     setErrorKey(null);
-  }, [changeQueueSide, changeView, commitGame]);
+  }, [changeQueueSide, changeView, commitGame, detachShare, stopShare]);
 
   const matchHumanWithWaitingAi = useCallback(() => {
     changeQueueSide(null);
@@ -748,6 +752,15 @@ function App() {
               onSendMessage={sendHumanMessage}
               onNewGame={resetRoom}
               onReturnLobby={resetRoom}
+              shareControls={
+                <ShareControls
+                  t={t}
+                  state={shareState}
+                  onCreate={createShare}
+                  onRetry={retryShare}
+                  onStop={stopShare}
+                />
+              }
             />
           )}
         </main>

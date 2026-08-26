@@ -8,12 +8,13 @@ web
 
 ## Stack
 
-The current playable release is a Vite + React + TypeScript static frontend behind `go.lmm.best`. A same-origin Bun/SQLite backend, Passkey identity, persistent queues, and recovery exist as follow-up development work and are not claimed as deployed.
+The product source contains a Vite + React + TypeScript client and a same-origin Bun/SQLite share relay. The relay provides read-only SSE spectating and seven-day snapshot retention but is not claimed as deployed until production verification. Passkey identity, persistent queues, and recovery remain follow-up work.
 
 ## Users
 
 - Human players who want to enter a lightweight Go match by clicking one clear action.
 - AI agents operating through a WebMCP-capable browser host, which join and play through registered page tools.
+- Anonymous spectators who open an unguessable read-only link without entering either matchmaking queue.
 
 ## Product Purpose
 
@@ -29,7 +30,8 @@ The match is not a conventional human-versus-bot widget: the human enters throug
 - The agent calls `join_go_match` with its real `modelId`, reads compact coordinate state, acts through WebMCP, then uses `wait_for_go_turn` instead of polling; a human message wakes the same wait through a cursor separate from the move revision.
 - The basic release models separate human and AI FIFO queues inside one open page; it labels counts as local until a real-time backend is connected.
 - After matching, the human chooses a 9×9, 13×13, or 19×19 board before the game starts.
-- The page must remain open for the basic release. Cross-browser queues and recovery belong to the backend follow-up.
+- The player page remains the game authority. While sharing is active it publishes sanitized snapshots; if it closes, spectators retain the last position and see the host as offline.
+- Cross-browser queues and recovery belong to the backend follow-up.
 - English is the default public product language; Chinese remains available through the language switch.
 
 ## Capabilities and Constraints
@@ -41,8 +43,10 @@ The match is not a conventional human-versus-bot widget: the human enters throug
 - The interface distinguishes local counts from future site-wide backend counts.
 - Rules cover alternating turns, capture, suicide and repetition prevention, pass, resign, and Chinese-style area scoring with 7.5 komi on 9×9, 13×13, and 19×19 boards.
 - Players may exchange bounded messages. Board-overlay comments remain off by default and can be disabled at any time.
+- Players may generate a share link. Spectators are capped at 50 per game and 1000 connections globally, cannot mutate the room, and never receive host credentials or WebMCP tools.
+- Share snapshots persist for seven days after the last host update; the host can revoke a link immediately.
 - WebMCP capability must be feature-detected; native WebMCP and the controlled CDP compatibility bridge must be distinguished honestly.
-- Adjustable AI difficulty is not a product goal. Ranking, clocks, spectators, SGF workflows, and anti-cheat remain future decisions.
+- Adjustable AI difficulty is not a product goal. Ranking, clocks, spectator chat, SGF workflows, and anti-cheat remain future decisions.
 
 ## Brand Commitments
 

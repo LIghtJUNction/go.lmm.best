@@ -54,10 +54,12 @@ export function ConversationCue({
     t,
     messages,
     onOpen,
+    readOnly = false,
 }: {
     t: Copy;
     messages: GameMessage[];
     onOpen: () => void;
+    readOnly?: boolean;
 }) {
     const latest = messages.at(-1);
 
@@ -94,7 +96,7 @@ export function ConversationCue({
                     </span>
                 ) : (
                     <span className="mt-1 block truncate text-sm text-muted-foreground">
-                        {t.noMessages}
+                        {readOnly ? t.spectatorNoMessages : t.noMessages}
                     </span>
                 )}
             </span>
@@ -110,6 +112,7 @@ export function GameChat({
     onDanmakuToggle,
     onSendMessage,
     disabled,
+    readOnly = false,
     inputRef,
 }: {
     t: Copy;
@@ -118,6 +121,7 @@ export function GameChat({
     onDanmakuToggle: (enabled: boolean) => void;
     onSendMessage: (message: string) => boolean;
     disabled: boolean;
+    readOnly?: boolean;
     inputRef?: Ref<HTMLTextAreaElement>;
 }) {
     const [draft, setDraft] = useState("");
@@ -148,7 +152,9 @@ export function GameChat({
                         {t.chatTitle}
                     </h2>
                     <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                        {t.chatDescription}
+                        {readOnly
+                            ? t.spectatorChatDescription
+                            : t.chatDescription}
                     </p>
                 </div>
                 <Badge variant={messages.length > 0 ? "secondary" : "outline"}>
@@ -163,7 +169,11 @@ export function GameChat({
                             {messages.length === 0 ? (
                                 <div className="flex h-40 flex-col items-center justify-center gap-2 px-6 text-center text-sm text-muted-foreground">
                                     <MessageCircleIcon className="size-5" />
-                                    <p>{t.noMessages}</p>
+                                    <p>
+                                        {readOnly
+                                            ? t.spectatorNoMessages
+                                            : t.noMessages}
+                                    </p>
                                 </div>
                             ) : (
                                 messages.map((message, index) => {
@@ -219,7 +229,7 @@ export function GameChat({
                 </MessageScroller>
             </MessageScrollerProvider>
 
-            <form onSubmit={submit}>
+            <form onSubmit={submit} hidden={readOnly}>
                 <Field>
                     <InputGroup className="h-auto">
                         <InputGroupTextarea
@@ -232,7 +242,7 @@ export function GameChat({
                             placeholder={t.chatPlaceholder}
                             aria-label={t.chatPlaceholder}
                             className="min-h-20 resize-none text-base sm:text-sm"
-                            disabled={disabled}
+                            disabled={disabled || readOnly}
                         />
                         <InputGroupAddon
                             align="block-end"
@@ -246,7 +256,7 @@ export function GameChat({
                                 size="sm"
                                 variant="default"
                                 className="h-8 px-3"
-                                disabled={!canSend}
+                                disabled={!canSend || readOnly}
                                 aria-label={t.sendMessage}
                             >
                                 <SendIcon />

@@ -1,15 +1,18 @@
 # Backend deployment
 
-The API is a standalone Bun-compiled Linux x86-64 baseline binary. Production runs it as `/opt/go-lmm.best/bin/go-lmm-best-api`, stores SQLite data at `/var/lib/go-lmm.best/go.sqlite3`, and exposes it only through Nginx on `127.0.0.1:8787`.
+The API is a standalone Bun-compiled Linux x86-64 baseline binary. Production runs it as `/opt/go-lmm.best/bin/go-lmm-best-api`, stores live-share snapshots in SQLite at `/var/lib/go-lmm.best/go.sqlite3`, and exposes it only through Nginx on `127.0.0.1:8787`. The player browser remains authoritative; the service validates, stores, and fans out sanitized read-only snapshots over SSE.
 
 ## Build
 
-From a clean checkout, provide the server entry point as the first argument if it is not `server/index.ts`:
+From a clean checkout:
 
 ```bash
-./scripts/build-server-binary.sh server/index.ts dist/server/go-lmm-best-api
+npm install
+npm run build
 (cd dist/server && sha256sum --check go-lmm-best-api.sha256)
 ```
+
+`npm run build:server` type-checks `server/` and then calls `scripts/build-server-binary.sh server/index.ts dist/server/go-lmm-best-api`.
 
 The target is deliberately fixed to `bun-linux-x64-baseline`. The script builds in a temporary directory beside the destination, calculates SHA-256 before publication, and atomically renames the completed executable into place.
 
@@ -26,7 +29,7 @@ sudo install -o root -g root -m 0600 deploy/env/go-lmm-best-api.env.example \
 sudo systemctl daemon-reload
 ```
 
-The unit uses `DynamicUser=yes` with `StateDirectory=go-lmm.best`. systemd therefore creates and preserves `/var/lib/go-lmm.best` with ownership suitable for the transient service UID; do not pre-create the database as an unrelated user. The sandbox permits binding only TCP port 8787 and permits network traffic only over loopback. Keep `HOST=127.0.0.1` in the environment file.
+The unit uses `DynamicUser=yes` with `StateDirectory=go-lmm.best`. systemd therefore creates and preserves `/var/lib/go-lmm.best` with ownership suitable for the transient service UID; do not pre-create the database as an unrelated user. The sandbox permits binding only TCP port 8787 and permits network traffic only over loopback. Keep `HOST=127.0.0.1` and `APP_ORIGIN=https://go.lmm.best` in the environment file. The default limits are 50 spectators per share and 1000 SSE connections globally.
 
 Install the Nginx location snippet:
 
@@ -41,7 +44,7 @@ Then add this line **inside the existing TLS `server { ... }` block**, before it
 include /etc/nginx/snippets/go-lmm-best-backend-locations.conf;
 ```
 
-Do not include it at `http` scope, and do not replace the existing static-asset locations. The snippet matches only `/api/` and the exact WebSocket route `/api/v1/ws`, preserves the request URI, overwrites forwarding headers from trusted Nginx values, disables proxy caching, and applies bounded body sizes and timeouts.
+Do not include it at `http` scope, and do not replace the existing static-asset locations. The snippet matches `/api/` and dedicated share/SSE routes. It preserves the request URI, overwrites forwarding headers from trusted Nginx values, disables caching and SSE buffering, caps bodies at 256 KiB, and disables access logging for URL paths that contain opaque share IDs. No Upgrade headers are forwarded; add a separately hardened exact WebSocket location only when matchmaking transport is implemented.
 
 Validate before reloading:
 
@@ -103,7 +106,7 @@ sudo nginx -t
 curl --fail --silent --show-error https://go.lmm.best/healthz
 ```
 
-The `ss` output must show only `127.0.0.1:8787`, never `0.0.0.0:8787` or `[::]:8787`. The public `/healthz` check verifies the existing Nginx health endpoint; the loopback check verifies the API itself. Exercise one normal `/api/` request and a WebSocket handshake as an application-level smoke test.
+The `ss` output must show only `127.0.0.1:8787`, never `0.0.0.0:8787` or `[::]:8787`. The public `/healthz` check verifies the existing Nginx health endpoint; the loopback check verifies the API itself. Exercise the full sharing flow as an application-level smoke test: generate a link from a live room, open it in a signed-out browser, place one stone and send one message, confirm the spectator receives both, then stop sharing and confirm the spectator receives the revoked state. Verify that the spectator page exposes no enabled board intersections and no WebMCP tools. Restart the API once in staging and confirm the last snapshot remains readable from SQLite.
 
 ## Executable rollback order
 
@@ -123,7 +126,7 @@ No automatic rollback job or timer is installed. If health or smoke checks fail,
    sudo systemctl restart go-lmm-best-api.service
    ```
 
-4. Repeat the loopback API health check, `ss` bind check, logs, proxied API/WebSocket smoke tests, and `nginx -t`.
+4. Repeat the loopback API health check, `ss` bind check, logs, proxied share/SSE smoke tests, and `nginx -t`.
 5. Roll back the Nginx include only if the proxy configuration itself caused the failure: remove the single include line, run `sudo nginx -t`, and only then reload Nginx. Static delivery remains independent throughout.
 
 Never reload Nginx after a failed `nginx -t`, and never restore SQLite while the API process is running.

@@ -34,6 +34,7 @@ The basic release stores its queue and game in the current page. Keep that page 
 - Either participant may enter the page-local FIFO queue first.
 - The human chooses the board size after matching.
 - Both sides can place stones, pass, resign, and exchange short messages.
+- A player can create an unguessable read-only link; spectators receive moves, chat, scoring, and the result over SSE without occupying a player seat or registering WebMCP tools.
 - The human may request scoring; the AI can accept or reject with the current revision.
 - Accepted scoring uses Chinese-style area scoring with 7.5 komi.
 - Optional board comments are off by default.
@@ -84,16 +85,23 @@ The source builds equivalent tool objects in `createTools()` and registers them 
 Requirements:
 
 - Node.js 22+
+- Bun 1.3+
 - npm 10+
 
 ```bash
 git clone https://github.com/LIghtJUNction/go.lmm.best.git
 cd go.lmm.best
 npm install
+```
+
+Run the same-origin share relay and Vite in separate terminals:
+
+```bash
+npm run dev:server
 npm run dev
 ```
 
-Open the printed local URL. Native WebMCP requires a compatible browser host. The controlled bridge remains available for local CDP testing.
+Open the printed Vite URL. Native WebMCP requires a compatible browser host. The controlled bridge remains available for local CDP testing. Share snapshots persist in `.data/go.sqlite3`; generated links remain readable for seven days after their last host update.
 
 ## Test and build
 
@@ -103,28 +111,36 @@ npm run build
 npm run check
 ```
 
-`npm run check` runs Vitest, TypeScript, the Vite production build, and static precompression. The generated static site is in `dist/`.
+`npm run check` runs Vitest and Bun tests, client and server type checks, the Vite production build, static precompression, and the Bun Linux binary build. The static site is in `dist/`; the verified API binary and checksum are in `dist/server/`.
 
 Before a release, test both languages and themes at desktop and 390px mobile widths. Verify the direct WebMCP tool list in ChatGPT's in-app browser or Chrome 149+, then complete one move and one revision failure against the deployed URL.
 
 ## Project map
 
 ```text
+server/
+├── index.ts                  # loopback-only Bun entry point
+├── app.ts                    # same-origin JSON and SSE HTTP boundary
+├── share-relay.ts            # fan-out, limits, presence, expiry
+└── share-store.ts            # token-hashed SQLite persistence
 src/
-├── App.tsx                    # room coordinator and WebMCP callbacks
+├── App.tsx                    # room coordinator, sharing, WebMCP callbacks
+├── SpectatorApp.tsx           # route-isolated read-only watch page
 ├── board.css                 # responsive Go board geometry
 ├── components/
-│   ├── room-ui.tsx           # lobby, queue, setup, and room views
+│   ├── room-ui.tsx           # lobby, queue, player, and spectator views
+│   ├── share-controls.tsx    # generate, copy, status, and revoke
 │   ├── game-social.tsx       # messages, comments, scoring, actions
 │   └── match-setup.tsx       # board and color selection
 └── lib/
-    ├── go.ts                  # captures, legality, repetition, area score
-    ├── session.ts             # revisioned game transitions
-    ├── webmcp.ts              # eight WebMCP tools and controlled bridge
-    └── i18n.ts                # complete English and Chinese copy
+    ├── go.ts                 # captures, legality, repetition, area score
+    ├── session.ts            # revisioned game transitions
+    ├── share.ts              # sanitized spectator protocol and schemas
+    ├── webmcp.ts             # eight WebMCP tools and controlled bridge
+    └── i18n.ts               # complete English and Chinese copy
 ```
 
-The repository also contains work toward optional Passkey identity and a persistent real-time service. Guests will continue to play without an account; Passkey will be the only account method for players who want recovery. Those modules stay outside the live flow until their server integration and recovery tests pass.
+The source now includes the Bun/SQLite relay required by live share links and read-only SSE spectating. It is intentionally not claimed as production-active until the API service and Nginx snippet are deployed and verified. Optional Passkey identity, cross-browser queues, and recovery remain follow-up work; guests will continue to play without an account.
 
 ## Challenge submission assets
 

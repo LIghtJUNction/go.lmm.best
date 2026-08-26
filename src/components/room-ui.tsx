@@ -77,6 +77,7 @@ import {
 } from "@/components/ui/item";
 import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
+import { writeToClipboard } from "@/lib/clipboard";
 import { createBoard, type Board as GoBoardData, type Point } from "@/lib/go";
 import type { Copy, Language } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -158,35 +159,6 @@ function AnimatedNumber({ value }: { value: number }) {
 }
 
 type InviteCopyState = "idle" | "copying" | "copied" | "failed";
-
-async function writeToClipboard(text: string): Promise<boolean> {
-  if (navigator.clipboard?.writeText) {
-    try {
-      await navigator.clipboard.writeText(text);
-      return true;
-    } catch {
-      // Fall through to the selection-based fallback.
-    }
-  }
-
-  const textArea = document.createElement("textarea");
-  textArea.value = text;
-  textArea.setAttribute("readonly", "");
-  textArea.style.position = "fixed";
-  textArea.style.inset = "0 auto auto -9999px";
-  textArea.style.opacity = "0";
-  document.body.append(textArea);
-  textArea.select();
-  textArea.setSelectionRange(0, text.length);
-
-  try {
-    return document.execCommand("copy");
-  } catch {
-    return false;
-  } finally {
-    textArea.remove();
-  }
-}
 
 function AgentInviteButton({
   t,
@@ -412,6 +384,7 @@ export function Header({
   onLanguageToggle,
   onThemeToggle,
   onReturnHome,
+  showWebMcpStatus = true,
 }: {
   t: Copy;
   language: Language;
@@ -420,6 +393,7 @@ export function Header({
   onLanguageToggle: () => void;
   onThemeToggle: () => void;
   onReturnHome: () => void;
+  showWebMcpStatus?: boolean;
 }) {
   return (
     <header className="border-b bg-background/95">
@@ -443,7 +417,9 @@ export function Header({
           </span>
         </Button>
         <div className="flex items-center gap-2">
-          <WebMCPStatusBadge t={t} status={webmcpStatus} showContext />
+          {showWebMcpStatus && (
+            <WebMCPStatusBadge t={t} status={webmcpStatus} showContext />
+          )}
           <Button
             variant="outline"
             size="icon-sm"
@@ -880,6 +856,10 @@ export function GameRoom({
   onSendMessage,
   onReturnLobby,
   onNewGame,
+  audience = "player",
+  shareControls,
+  spectatorStatus = "live",
+  spectatorViewerCount = 0,
 }: {
   t: Copy;
   language: Language;
@@ -898,11 +878,17 @@ export function GameRoom({
   onSendMessage: (message: string) => boolean;
   onReturnLobby: () => void;
   onNewGame: () => void;
+  audience?: "player" | "spectator";
+  shareControls?: ReactNode;
+  spectatorStatus?: "live" | "reconnecting" | "offline" | "ended";
+  spectatorViewerCount?: number;
 }) {
+  const spectating = audience === "spectator";
   const isFinished = view === "finished";
   const scoringPending = game.scoring.status === "pending";
-  const isHumanTurn =
+  const isHumanTurnState =
     !isFinished && !scoringPending && game.turn === game.humanColor;
+  const isHumanTurn = !spectating && isHumanTurnState;
   const finishedText =
     game.endReason === "human-resigned"
       ? t.finishedByResignYou
@@ -911,15 +897,31 @@ export function GameRoom({
         : game.endReason === "scored"
           ? t.finishedByScore
           : t.finishedByPass;
-  const statusText = isFinished
-    ? finishedText
-    : scoringPending
-      ? t.scoringPending
-      : game.lastScoringDecision === "rejected"
-        ? t.scoringRejected
-        : isHumanTurn
-          ? t.statusYourTurn
-          : t.statusAiTurn;
+  const spectatorStatusLabel =
+    spectatorStatus === "reconnecting"
+      ? t.spectatorReconnecting
+      : spectatorStatus === "offline"
+        ? t.spectatorOffline
+        : spectatorStatus === "ended" || isFinished
+          ? t.spectatorEnded
+          : t.spectatorLive;
+  const statusText = spectating
+    ? isFinished
+      ? finishedText
+      : scoringPending
+        ? t.scoringPending
+        : isHumanTurnState
+          ? t.spectatorHumanTurn
+          : t.spectatorAiTurn
+    : isFinished
+      ? finishedText
+      : scoringPending
+        ? t.scoringPending
+        : game.lastScoringDecision === "rejected"
+          ? t.scoringRejected
+          : isHumanTurn
+            ? t.statusYourTurn
+            : t.statusAiTurn;
   const modeText = matchMode === "demo" ? t.demoMatch : t.gameLive;
   const largeBoard = game.boardSize > 9;
   const reducedMotion = useReducedMotion();
@@ -930,7 +932,7 @@ export function GameRoom({
       behavior: reducedMotion ? "auto" : "smooth",
       block: "center",
     });
-    if (!isFinished) {
+    if (!isFinished && !spectating) {
       window.requestAnimationFrame(() =>
         chatInputRef.current?.focus({ preventScroll: true }),
       );
@@ -946,23 +948,37 @@ export function GameRoom({
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <h1 className="text-3xl font-medium tracking-tight sm:text-5xl">
-              {t.gameTitle}
+              {spectating ? t.spectatorTitle : t.gameTitle}
             </h1>
             <p className="mt-1.5 text-sm text-muted-foreground">
-              {t.gameSubtitle(game.boardSize)}
+              {spectating
+                ? t.spectatorDescription
+                : t.gameSubtitle(game.boardSize)}
             </p>
           </div>
-          <Badge variant={isFinished ? "outline" : "secondary"}>
-            {isFinished ? t.finishedTitle : modeText}
+          <Badge
+            variant={
+              isFinished || (spectating && spectatorStatus !== "live")
+                ? "outline"
+                : "secondary"
+            }
+          >
+            {spectating
+              ? spectatorStatusLabel
+              : isFinished
+                ? t.finishedTitle
+                : modeText}
           </Badge>
         </div>
         <section className="flex flex-col gap-4 sm:gap-5">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <h2 className="text-lg font-medium sm:text-xl">Room 01</h2>
+              <h2 className="text-lg font-medium sm:text-xl">
+                {spectating ? t.spectatorMode : "Room 01"}
+              </h2>
               <p className="mt-1 text-sm text-muted-foreground">
                 {game.aiModelId
-                  ? `${t.human} vs ${game.aiModelId}`
+                  ? `${spectating ? t.humanFull : t.human} vs ${game.aiModelId}`
                   : t.gameSubtitle(game.boardSize)}
               </p>
             </div>
@@ -972,14 +988,19 @@ export function GameRoom({
                 : scoringPending
                   ? t.scoringPendingBadge
                   : game.turn === game.humanColor
-                    ? t.turnYou
-                    : t.turnAi}
+                    ? spectating
+                      ? t.spectatorHumanTurn
+                      : t.turnYou
+                    : spectating
+                      ? t.spectatorAiTurn
+                      : t.turnAi}
             </Badge>
           </div>
           <ConversationCue
             t={t}
             messages={game.messages}
             onOpen={openConversation}
+            readOnly={spectating}
           />
           <div
             className={cn(
@@ -1020,13 +1041,15 @@ export function GameRoom({
           <div className="flex items-start justify-between gap-4 text-sm text-muted-foreground">
             <span className="flex items-start gap-2">
               <InfoIcon className="mt-0.5 shrink-0" />
-              {isFinished
-                ? t.statusFinished
-                : scoringPending
-                  ? t.scoringPending
-                  : isHumanTurn
-                    ? t.tipContent
-                    : t.statusAiTurn}
+              {spectating
+                ? statusText
+                : isFinished
+                  ? t.statusFinished
+                  : scoringPending
+                    ? t.scoringPending
+                    : isHumanTurn
+                      ? t.tipContent
+                      : t.statusAiTurn}
             </span>
             <Badge variant="outline" className="shrink-0">
               {game.boardSize} × {game.boardSize}
@@ -1038,13 +1061,15 @@ export function GameRoom({
           <InfoIcon className="mt-0.5 shrink-0" />
           <div>
             <h2 className="font-medium">
-              {isFinished
-                ? t.finishedTitle
-                : scoringPending
-                  ? t.requestScoring
-                  : isHumanTurn
-                    ? t.turnYou
-                    : t.turnAi}
+              {spectating
+                ? spectatorStatusLabel
+                : isFinished
+                  ? t.finishedTitle
+                  : scoringPending
+                    ? t.requestScoring
+                    : isHumanTurn
+                      ? t.turnYou
+                      : t.turnAi}
             </h2>
             <p className="mt-1 text-sm leading-6 text-muted-foreground">
               {statusText}
@@ -1053,9 +1078,16 @@ export function GameRoom({
         </div>
       </div>
       <aside className="flex min-w-0 flex-col gap-6 xl:border-l xl:pl-10">
-        <PlayerStack t={t} game={game} isFinished={isFinished} />
-        {!isFinished && (
-          <div className="order-1 xl:order-5">
+        <PlayerStack
+          t={t}
+          game={game}
+          isFinished={isFinished}
+          spectating={spectating}
+          spectatorStatusLabel={spectatorStatusLabel}
+          spectatorViewerCount={spectatorViewerCount}
+        />
+        {!spectating && !isFinished && (
+          <div className="order-1 xl:order-6">
             <GameActions
               t={t}
               game={game}
@@ -1067,38 +1099,46 @@ export function GameRoom({
             />
           </div>
         )}
-        <div className="order-2 xl:order-1">
+        {shareControls && (
+          <div className="order-2 xl:order-1">{shareControls}</div>
+        )}
+        <div className="order-3 xl:order-2">
           <GameChat
             t={t}
             messages={game.messages}
             danmakuEnabled={danmakuEnabled}
             onDanmakuToggle={onDanmakuToggle}
             onSendMessage={onSendMessage}
-            disabled={isFinished}
+            disabled={isFinished || spectating}
+            readOnly={spectating}
             inputRef={chatInputRef}
           />
         </div>
-        <div className="order-3 border-t pt-6 xl:order-2">
+        <div className="order-4 border-t pt-6 xl:order-3">
           <ScoreSummary t={t} game={game} />
         </div>
-        <div className="order-4 border-t pt-6 xl:order-3">
+        <div className="order-5 border-t pt-6 xl:order-4">
           <MoveLog t={t} language={language} moves={game.moves} />
         </div>
-        <div className="order-5 border-t pt-6 xl:order-4">
-          <ToolPanel
-            t={t}
-            webmcpStatus={webmcpStatus}
-            lastToolCall={lastToolCall}
-          />
-        </div>
-        {isFinished && (
-          <div className="order-6 flex flex-col gap-2 border-t pt-6">
-            <Button size="lg" onClick={onNewGame}>
-              {t.newMatch}
-              <ArrowUpRightIcon data-icon="inline-end" />
-            </Button>
+        {!spectating && (
+          <div className="order-6 border-t pt-6 xl:order-5">
+            <ToolPanel
+              t={t}
+              webmcpStatus={webmcpStatus}
+              lastToolCall={lastToolCall}
+            />
+          </div>
+        )}
+        {(isFinished || spectating) && (
+          <div className="order-7 flex flex-col gap-2 border-t pt-6">
+            {!spectating && (
+              <Button size="lg" onClick={onNewGame}>
+                {t.newMatch}
+                <ArrowUpRightIcon data-icon="inline-end" />
+              </Button>
+            )}
             <Button variant="ghost" onClick={onReturnLobby}>
-              {t.returnLobby}
+              {spectating ? t.backToHome : t.returnLobby}
               <ArrowRightIcon data-icon="inline-end" />
             </Button>
           </div>
@@ -1112,20 +1152,34 @@ function PlayerStack({
   t,
   game,
   isFinished,
+  spectating = false,
+  spectatorStatusLabel,
+  spectatorViewerCount = 0,
 }: {
   t: Copy;
   game: GameState;
   isFinished: boolean;
+  spectating?: boolean;
+  spectatorStatusLabel?: string;
+  spectatorViewerCount?: number;
 }) {
   return (
     <section className="flex flex-col gap-5">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h2 className="text-xl font-medium">{t.gameLive}</h2>
-          <p className="mt-1 text-sm text-muted-foreground">{t.rulesDetail}</p>
+          <h2 className="text-xl font-medium">
+            {spectating ? t.spectatorTitle : t.gameLive}
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {spectating ? spectatorStatusLabel : t.rulesDetail}
+          </p>
         </div>
         <Badge variant="outline">
-          {isFinished ? t.finishedTitle : "1 / 1"}
+          {spectating
+            ? t.shareViewers(spectatorViewerCount)
+            : isFinished
+              ? t.finishedTitle
+              : "1 / 1"}
         </Badge>
       </div>
       <ItemGroup>
@@ -1138,8 +1192,10 @@ function PlayerStack({
             </Avatar>
           </ItemMedia>
           <ItemContent>
-            <ItemTitle>{t.human}</ItemTitle>
-            <ItemDescription>{t.humanFull}</ItemDescription>
+            <ItemTitle>{spectating ? t.humanFull : t.human}</ItemTitle>
+            <ItemDescription>
+              {spectating ? t.spectatorHumanPlayer : t.humanFull}
+            </ItemDescription>
           </ItemContent>
           <ItemActions>
             <Badge variant="outline">{t.black}</Badge>
