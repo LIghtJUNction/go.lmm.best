@@ -3,8 +3,11 @@ import {
   applyMove,
   calculateAreaScore,
   createBoard,
+  formatGoBoardForAgent,
+  formatGoCoordinate,
   getGroup,
   getLiberties,
+  parseGoCoordinate,
   serializeBoard,
   type Board,
 } from "./go";
@@ -14,6 +17,31 @@ describe("Go rule engine", () => {
     const board = createBoard(3);
     expect(board).toHaveLength(3);
     expect(serializeBoard(board)).toBe(".../.../...");
+  });
+
+  it("uses standard bottom-up Go coordinates and omits I", () => {
+    expect(formatGoCoordinate({ x: 0, y: 0 }, 13)).toBe("A13");
+    expect(formatGoCoordinate({ x: 8, y: 12 }, 13)).toBe("J1");
+    expect(parseGoCoordinate("J1", 13)).toEqual({ x: 8, y: 12 });
+    expect(parseGoCoordinate("D10", 13)).toEqual({ x: 3, y: 3 });
+    expect(parseGoCoordinate("I5", 13)).toBeNull();
+    expect(parseGoCoordinate("N14", 13)).toBeNull();
+  });
+
+  it("formats a compact ASCII board with agent-safe coordinates", () => {
+    const board = createBoard(3);
+    board[0][0] = "black";
+    board[2][2] = "white";
+
+    expect(formatGoBoardForAgent(board)).toEqual({
+      coordinateSystem:
+        "Standard Go coordinates: columns A-T omit I; row 1 is the bottom edge.",
+      legend: "X black, O white, . empty",
+      diagram: "   A B C\n 3 X . .\n 2 . . .\n 1 . . O",
+      black: ["A3"],
+      white: ["C1"],
+      emptyCount: 7,
+    });
   });
 
   it("captures an opponent group with no liberties", () => {

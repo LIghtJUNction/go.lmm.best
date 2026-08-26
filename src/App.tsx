@@ -11,7 +11,12 @@ import {
 } from "@/components/room-ui";
 import { LivePopulationStrip } from "@/components/live-population";
 import { MatchSetup } from "@/components/match-setup";
-import type { Point } from "@/lib/go";
+import {
+  formatGoBoardForAgent,
+  formatGoCoordinate,
+  parseGoCoordinate,
+  type Point,
+} from "@/lib/go";
 import { copy, type Language } from "@/lib/i18n";
 import {
   appendMessage,
@@ -102,9 +107,11 @@ function App() {
   const viewRef = useRef(view);
   const queueSideRef = useRef(queueSide);
   const gameRef = useRef(game);
+  const stateChangeListenersRef = useRef(new Set<() => void>());
   const callbacksRef = useRef<WebMCPCallbacks>({
     joinMatch: () => ({ ok: false, error: "not_ready" }),
     getGameState: () => ({ ok: false, error: "not_ready" }),
+    waitForTurn: () => ({ ok: false, error: "not_ready" }),
     playMove: () => ({ ok: false, error: "not_ready" }),
     passTurn: () => ({ ok: false, error: "not_ready" }),
     resignGame: () => ({ ok: false, error: "not_ready" }),
@@ -112,21 +119,33 @@ function App() {
     sendMessage: () => ({ ok: false, error: "not_ready" }),
   });
 
-  const changeView = useCallback((nextView: RoomView) => {
-    viewRef.current = nextView;
-    setView(nextView);
+  const notifyStateChange = useCallback(() => {
+    for (const listener of stateChangeListenersRef.current) listener();
   }, []);
-  const changeQueueSide = useCallback((nextSide: QueueSide) => {
-    queueSideRef.current = nextSide;
-    setQueueSide(nextSide);
-  }, []);
+  const changeView = useCallback(
+    (nextView: RoomView) => {
+      viewRef.current = nextView;
+      setView(nextView);
+      notifyStateChange();
+    },
+    [notifyStateChange],
+  );
+  const changeQueueSide = useCallback(
+    (nextSide: QueueSide) => {
+      queueSideRef.current = nextSide;
+      setQueueSide(nextSide);
+      notifyStateChange();
+    },
+    [notifyStateChange],
+  );
   const commitGame = useCallback(
     (nextGame: GameState) => {
       gameRef.current = nextGame;
       setGame(nextGame);
       if (nextGame.endReason) changeView("finished");
+      notifyStateChange();
     },
-    [changeView],
+    [changeView, notifyStateChange],
   );
 
   const applySessionResult = useCallback(
@@ -240,6 +259,8 @@ function App() {
           queueSide: "ai",
           queuePosition: 1,
           modelId: input.modelId,
+          revision: 0,
+          actionRequired: "wait_for_go_turn",
         };
       }
 
@@ -255,14 +276,23 @@ function App() {
           status: "matched",
           phase: "setup",
           modelId: input.modelId,
+          revision: 0,
           defaultBoardSize: 9,
           boardOptions: [9, 13, 19],
+          actionRequired: "wait_for_go_turn",
         };
       }
 
       if (currentView === "searching" && currentQueueSide === "ai") {
         return gameRef.current.aiModelId === input.modelId
-          ? { ok: true, status: "queued", queueSide: "ai", queuePosition: 1 }
+          ? {
+              ok: true,
+              status: "queued",
+              queueSide: "ai",
+              queuePosition: 1,
+              revision: gameRef.current.revision,
+              actionRequired: "wait_for_go_turn",
+            }
           : { ok: false, error: "ai_queue_occupied" };
       }
 
@@ -274,43 +304,135 @@ function App() {
   const getGameState = useCallback(() => {
     const currentView = viewRef.current;
     const currentGame = gameRef.current;
-    if (currentView === "idle") return { ok: true, phase: "idle" };
+    if (currentView === "idle") {
+      return {
+        ok: true,
+        phase: "idle",
+        revision: currentGame.revision,
+        actionRequired: "join_go_match",
+      };
+    }
     if (currentView === "searching") {
       return {
         ok: true,
         phase: "queue",
+        revision: currentGame.revision,
         queueSide: queueSideRef.current,
         queuePosition: 1,
         modelId: currentGame.aiModelId,
+        actionRequired:
+          queueSideRef.current === "human"
+            ? "join_go_match"
+            : "wait_for_go_turn",
       };
     }
     if (currentView === "setup") {
       return {
         ok: true,
         phase: "setup",
+        revision: currentGame.revision,
         modelId: currentGame.aiModelId,
         boardOptions: [9, 13, 19],
         defaultBoardSize: 9,
         message: t.waitingForBoardSelection,
+        actionRequired: "wait_for_go_turn",
       };
     }
 
+    const lastMove = currentGame.moves.at(-1);
+    const actionRequired = currentGame.endReason
+      ? "game_finished"
+      : currentGame.scoring.status === "pending"
+        ? "respond_go_scoring"
+        : currentGame.turn === currentGame.aiColor
+          ? "play_go_move, pass_go_turn, or resign_go_game"
+          : "wait_for_go_turn";
     return {
       ok: true,
       phase: currentView,
       revision: currentGame.revision,
       boardSize: currentGame.boardSize,
-      board: currentGame.board.map((row) => row.map((cell) => cell ?? "empty")),
+      board: formatGoBoardForAgent(currentGame.board),
       turn: currentGame.turn,
+      turnActor: currentGame.turn === currentGame.aiColor ? "ai" : "human",
       aiColor: currentGame.aiColor,
       humanColor: currentGame.humanColor,
+      actionRequired,
       captures: currentGame.captures,
-      moves: currentGame.moves,
+      moves: currentGame.moves.map((move) => ({
+        ...move,
+        coordinate: move.point
+          ? formatGoCoordinate(move.point, currentGame.boardSize)
+          : "pass",
+      })),
+      lastMove: lastMove
+        ? lastMove.point
+          ? formatGoCoordinate(lastMove.point, currentGame.boardSize)
+          : "pass"
+        : null,
       scoring: currentGame.scoring,
       messages: currentGame.messages,
       endReason: currentGame.endReason ?? null,
     };
   }, [t.waitingForBoardSelection]);
+
+  const waitForTurn = useCallback(
+    (afterRevision: number, timeoutMs: number) => {
+      if (afterRevision > gameRef.current.revision) {
+        return Promise.resolve({
+          ok: false,
+          error: "future_revision",
+          currentRevision: gameRef.current.revision,
+        });
+      }
+
+      const readiness = () => {
+        const currentView = viewRef.current;
+        const currentGame = gameRef.current;
+        if (currentView === "idle") return "stopped" as const;
+        if (currentView === "finished" || currentGame.endReason) {
+          return "ready" as const;
+        }
+        if (
+          currentView === "playing" &&
+          (currentGame.turn === currentGame.aiColor ||
+            currentGame.scoring.status === "pending")
+        ) {
+          return "ready" as const;
+        }
+        return null;
+      };
+
+      const initialStatus = readiness();
+      if (initialStatus) {
+        return Promise.resolve({
+          ...getGameState(),
+          waitStatus: initialStatus,
+          afterRevision,
+        });
+      }
+
+      return new Promise((resolve) => {
+        let settled = false;
+        let timer = 0;
+        const finish = (waitStatus: "ready" | "waiting" | "stopped") => {
+          if (settled) return;
+          settled = true;
+          window.clearTimeout(timer);
+          stateChangeListenersRef.current.delete(onStateChange);
+          resolve({ ...getGameState(), waitStatus, afterRevision });
+        };
+        const onStateChange = () => {
+          const status = readiness();
+          if (status) finish(status);
+        };
+        stateChangeListenersRef.current.add(onStateChange);
+        timer = window.setTimeout(() => finish("waiting"), timeoutMs);
+        onStateChange();
+      });
+    },
+    [getGameState],
+  );
 
   const runAiTransition = useCallback(
     (toolName: string, transition: (game: GameState) => SessionResult) => {
@@ -337,10 +459,26 @@ function App() {
   );
 
   const playAiMove = useCallback(
-    (point: Point, expectedRevision: number) =>
-      runAiTransition("play_go_move", (current) =>
+    (move: Point | string, expectedRevision: number) => {
+      const point =
+        typeof move === "string"
+          ? parseGoCoordinate(move, gameRef.current.boardSize)
+          : move;
+      if (
+        !point ||
+        !Number.isInteger(point.x) ||
+        !Number.isInteger(point.y) ||
+        point.x < 0 ||
+        point.y < 0 ||
+        point.x >= gameRef.current.boardSize ||
+        point.y >= gameRef.current.boardSize
+      ) {
+        return { ok: false, error: "invalid_coordinate" };
+      }
+      return runAiTransition("play_go_move", (current) =>
         playSessionMove(current, "ai", point, expectedRevision),
-      ),
+      );
+    },
     [runAiTransition],
   );
 
@@ -385,6 +523,7 @@ function App() {
   callbacksRef.current = {
     joinMatch,
     getGameState,
+    waitForTurn,
     playMove: playAiMove,
     passTurn: passAiTurn,
     resignGame: resignAiGame,
@@ -398,6 +537,8 @@ function App() {
         {
           joinMatch: (input) => callbacksRef.current.joinMatch(input),
           getGameState: () => callbacksRef.current.getGameState(),
+          waitForTurn: (revision, timeoutMs) =>
+            callbacksRef.current.waitForTurn(revision, timeoutMs),
           playMove: (point, revision) =>
             callbacksRef.current.playMove(point, revision),
           passTurn: (revision) => callbacksRef.current.passTurn(revision),

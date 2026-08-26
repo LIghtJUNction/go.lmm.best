@@ -30,10 +30,15 @@ describe("WebMCP tool registration", () => {
     });
 
     const joinMatch = vi.fn(() => ({ ok: true }));
+    const waitForTurn = vi.fn(() => ({ ok: true, waitStatus: "ready" }));
+    const playMove = vi.fn(
+      (_move: Point | string, _expectedRevision: number) => ({ ok: true }),
+    );
     const callbacks: WebMCPCallbacks = {
       joinMatch,
       getGameState: () => ({ ok: true }),
-      playMove: (_point: Point, _expectedRevision: number) => ({ ok: true }),
+      waitForTurn,
+      playMove,
       passTurn: (_expectedRevision: number) => ({ ok: true }),
       resignGame: (_expectedRevision: number) => ({ ok: true }),
       respondScoring: (_decision, _expectedRevision) => ({ ok: true }),
@@ -42,7 +47,7 @@ describe("WebMCP tool registration", () => {
     const onStatus = vi.fn();
     const dispose = registerWebMCPTools(callbacks, onStatus);
 
-    await vi.waitFor(() => expect(tools.size).toBe(7));
+    await vi.waitFor(() => expect(tools.size).toBe(8));
     await expect(tools.get("join_go_match")?.execute({})).resolves.toEqual({
       ok: false,
       error: "model_id_required",
@@ -56,6 +61,26 @@ describe("WebMCP tool registration", () => {
       modelId: "openai/gpt-5",
       displayName: "Go Agent",
     });
+
+    expect(
+      tools.get("wait_for_go_turn")?.execute({ afterRevision: -1 }),
+    ).toEqual({ ok: false, error: "invalid_revision" });
+    expect(
+      tools
+        .get("wait_for_go_turn")
+        ?.execute({ afterRevision: 7, timeoutMs: 500 }),
+    ).toEqual({ ok: false, error: "invalid_timeout" });
+    await tools.get("wait_for_go_turn")?.execute({ afterRevision: 7 });
+    expect(waitForTurn).toHaveBeenCalledWith(7, 25000);
+    await tools
+      .get("wait_for_go_turn")
+      ?.execute({ afterRevision: 8, timeoutMs: 5000 });
+    expect(waitForTurn).toHaveBeenLastCalledWith(8, 5000);
+
+    await tools
+      .get("play_go_move")
+      ?.execute({ coordinate: " d 4 ", expectedRevision: 9 });
+    expect(playMove).toHaveBeenCalledWith("D4", 9);
     expect(onStatus).toHaveBeenCalledWith("available");
     expect(onStatus.mock.calls.map(([status]) => status)).toEqual([
       "checking",
@@ -63,7 +88,7 @@ describe("WebMCP tool registration", () => {
     ]);
 
     dispose();
-    expect(signals).toHaveLength(7);
+    expect(signals).toHaveLength(8);
     expect(signals.every((signal) => signal.aborted)).toBe(true);
   });
 
@@ -78,6 +103,7 @@ describe("WebMCP tool registration", () => {
       {
         joinMatch: () => ({ ok: true }),
         getGameState: () => ({ ok: true }),
+        waitForTurn: () => ({ ok: true }),
         playMove: () => ({ ok: true }),
         passTurn: () => ({ ok: true }),
         resignGame: () => ({ ok: true }),
@@ -108,6 +134,7 @@ describe("WebMCP tool registration", () => {
       {
         joinMatch: () => ({ ok: true }),
         getGameState: () => ({ ok: true }),
+        waitForTurn: () => ({ ok: true }),
         playMove: () => ({ ok: true }),
         passTurn: () => ({ ok: true }),
         resignGame: () => ({ ok: true }),

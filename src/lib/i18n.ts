@@ -24,7 +24,7 @@ export const copy = {
     copyAgentInviteHint:
       "当前基础版需让 AI 控制这个页面；AI 可以先入队，人类随后在同一页面加入。",
     agentInvitePrompt: (origin: string) =>
-      `请在支持 WebMCP 的交互式浏览器中控制 ${origin} 当前这个页面。当前基础版的对局状态保存在此页面，不要改用另一个标签页、浏览器或设备。浏览器通知可能已经列出页面定义的工具；只要某个 WebMCP 工具覆盖所需动作，就优先使用它。在这个页面第一次获取工具时执行：\n\nconst webmcp = await tab.capabilities.get("webmcp");\nconst tools = await webmcp.fetchTools();\n\n如果当前通知没有列出工具，输出 tools.description()。只调用其中列出的工具。在同一页面持续复用这个 tools handle；只有工具调用明确报告 stale/invalid handle，或通知说明页面可用工具发生变化时，才重新 fetchTools()。找到 join_go_match 后执行 await tools.call("join_go_match", { modelId: "<当前真实模型 ID>" })；可选传 displayName，不能照抄占位符。不要搜索网页，不要检查源码、DOM 或网络，也不要刷新。如果 WebMCP capability 确实不可用、但宿主提供受控 CDP 运行时，才检查 window.goWebMCP.listTools() 并只调用其中列出的工具；两条路径都没有 join_go_match 时立即停止。AI 可以在人类之前入队；随后人类可在同一页面加入。匹配后调用 get_go_game_state。仅在轮到 AI 时行动，并为 play_go_move、pass_go_turn、resign_go_game 或 respond_go_scoring 传入最新 expectedRevision；可随时用 send_go_message 发言。每次状态改变后重新读取状态，绝不猜测坐标、轮次或 revision。`,
+      `请在支持 WebMCP 的交互式浏览器中控制 ${origin} 当前这个页面。当前基础版的对局状态保存在此页面，不要改用另一个标签页、浏览器或设备。浏览器通知可能已经列出页面定义的工具；只要某个 WebMCP 工具覆盖所需动作，就优先使用它。在这个页面第一次获取工具时执行：\n\nconst webmcp = await tab.capabilities.get("webmcp");\nconst tools = await webmcp.fetchTools();\n\n如果当前通知没有列出工具，输出 tools.description()。只调用其中列出的工具。在同一页面持续复用这个 tools handle；只有工具调用明确报告 stale/invalid handle，或通知说明页面可用工具发生变化时，才重新 fetchTools()。找到 join_go_match 后执行 await tools.call("join_go_match", { modelId: "<当前真实模型 ID>" })；可选传 displayName，不能照抄占位符。不要搜索网页，不要检查源码、DOM 或网络，也不要刷新。如果 WebMCP capability 确实不可用、但宿主提供受控 CDP 运行时，才检查 window.goWebMCP.listTools() 并只调用其中列出的工具；两条路径都没有 join_go_match 时立即停止。AI 可以在人类之前入队；随后人类可在同一页面加入。匹配或入队后遵循返回的 actionRequired；初次需要完整棋盘时调用 get_go_game_state。仅在轮到 AI 时行动，并为 play_go_move、pass_go_turn、resign_go_game 或 respond_go_scoring 传入最新 expectedRevision；可随时用 send_go_message 发言。当 actionRequired 是 wait_for_go_turn 时，只调用一次该工具并把最新 revision 作为 afterRevision，让它等待人类落子、点目或结束对局；不要循环调用 get_go_game_state。waitStatus 为 waiting 时可用返回的最新 revision 再发起一次长等待；只有 stale_state 等需要重新同步的错误才重新读取状态。绝不猜测坐标、轮次或 revision。`,
     demoHint: "当前宿主未暴露 WebMCP，可先预览对局界面。",
     human: "你",
     humanFull: "人类玩家",
@@ -34,9 +34,9 @@ export const copy = {
     webmcpReady: "已连接 · 可接受工具调用",
     webmcpStandby: "监听中 · 等待 AI 报到",
     webmcpChecking: "正在检查当前标签页",
-    webmcpCheckingDescription: "正在确认 7 个对局工具能否完成注册。",
+    webmcpCheckingDescription: "正在确认 8 个对局工具能否完成注册。",
     webmcpSessionReady: "当前标签页已就绪",
-    webmcpSessionReadyDescription: "7 个对局工具已在这个浏览器会话中注册完成。",
+    webmcpSessionReadyDescription: "8 个对局工具已在这个浏览器会话中注册完成。",
     webmcpSessionUnavailable: "当前标签页无法暴露 WebMCP 工具",
     webmcpSessionUnavailableDescription:
       "页面仍可预览，但普通 Chat 或另一个浏览器会话无法加入这盘本地对局。",
@@ -69,7 +69,7 @@ export const copy = {
     queuesBalanced: "当前无人等待",
     matchMode: "9×9 · 13×13 · 19×19",
     noAccount: "基础版无需账号",
-    liveTools: "7 个实时工具",
+    liveTools: "8 个实时工具",
     matchStepsTitle: "一场对局只需要三步",
     stepOne: "点击入场",
     stepOneDetail: "你先锁定一个座位",
@@ -122,8 +122,9 @@ export const copy = {
     rulesDetail: "轮流落子 · 提子 · 禁止自杀",
     toolsTitle: "AI 可调用",
     toolsDescription:
-      "这些工具由当前房间注册，代理可以读取状态并推进自己的回合。",
+      "这些工具由当前房间注册，代理可以读取状态、等待人类并推进自己的回合。",
     toolState: "读取棋盘状态",
+    toolWait: "等待人类行动",
     toolMove: "提交一手棋",
     toolPass: "停一手",
     toolResign: "结束对局",
@@ -234,7 +235,7 @@ export const copy = {
     copyAgentInviteHint:
       "In this basic release, let the AI control this page. It may queue first, then a human can join on the same page.",
     agentInvitePrompt: (origin: string) =>
-      `Control the current ${origin} page in an interactive WebMCP-enabled browser. This basic release keeps the game state in this page; do not switch to another tab, browser, or device. Browser notifications may already list page-defined tools. Prefer WebMCP whenever a listed tool covers the requested action. On the first tool lookup for this page, run:\n\nconst webmcp = await tab.capabilities.get("webmcp");\nconst tools = await webmcp.fetchTools();\n\nIf no current notification lists the tools, print tools.description(). Call only listed tools. Reuse this same tools handle while on the same page. Fetch again only if a call reports a stale or invalid handle, or a notification says the page's available tools changed. When join_go_match is listed, run await tools.call("join_go_match", { modelId: "<your actual model ID>" }); displayName is optional and the placeholder must be replaced. Do not web-search; do not inspect source, DOM, or network; do not reload. Only if the WebMCP capability is genuinely unavailable and the host exposes a controlled CDP runtime, inspect window.goWebMCP.listTools() and call only listed bridge tools; stop if neither path lists join_go_match. The AI may queue before a human, who can then join on the same page. Once matched, call get_go_game_state. Act only on the AI turn and pass the latest expectedRevision to play_go_move, pass_go_turn, resign_go_game, or respond_go_scoring. send_go_message may be used at any time. Read state again after every state change; never guess a coordinate, turn, or revision.`,
+      `Control the current ${origin} page in an interactive WebMCP-enabled browser. This basic release keeps the game state in this page; do not switch to another tab, browser, or device. Browser notifications may already list page-defined tools. Prefer WebMCP whenever a listed tool covers the requested action. On the first tool lookup for this page, run:\n\nconst webmcp = await tab.capabilities.get("webmcp");\nconst tools = await webmcp.fetchTools();\n\nIf no current notification lists the tools, print tools.description(). Call only listed tools. Reuse this same tools handle while on the same page. Fetch again only if a call reports a stale or invalid handle, or a notification says the page's available tools changed. When join_go_match is listed, run await tools.call("join_go_match", { modelId: "<your actual model ID>" }); displayName is optional and the placeholder must be replaced. Do not web-search; do not inspect source, DOM, or network; do not reload. Only if the WebMCP capability is genuinely unavailable and the host exposes a controlled CDP runtime, inspect window.goWebMCP.listTools() and call only listed bridge tools; stop if neither path lists join_go_match. The AI may queue before a human, who can then join on the same page. After joining or matching, follow the returned actionRequired; call get_go_game_state when the full board is first needed. Act only on the AI turn and pass the latest expectedRevision to play_go_move, pass_go_turn, resign_go_game, or respond_go_scoring. send_go_message may be used at any time. When actionRequired is wait_for_go_turn, call that tool once with the latest revision as afterRevision so it waits for the human move, scoring request, or game end; do not loop on get_go_game_state. If waitStatus is waiting, start one more long wait with the returned latest revision. Read state again only after a stale_state or another error that requires resynchronization. Never guess a coordinate, turn, or revision.`,
     demoHint: "This host has no WebMCP yet. Preview the board locally first.",
     human: "You",
     humanFull: "Human player",
@@ -245,10 +246,10 @@ export const copy = {
     webmcpStandby: "Listening · waiting for AI",
     webmcpChecking: "Checking this tab",
     webmcpCheckingDescription:
-      "Confirming that all seven game tools can finish registering.",
+      "Confirming that all eight game tools can finish registering.",
     webmcpSessionReady: "This tab is ready",
     webmcpSessionReadyDescription:
-      "All seven game tools are registered in this browser session.",
+      "All eight game tools are registered in this browser session.",
     webmcpSessionUnavailable: "This tab cannot expose WebMCP tools",
     webmcpSessionUnavailableDescription:
       "The page can still preview the game, but plain chat or another browser session cannot join this local match.",
@@ -286,7 +287,7 @@ export const copy = {
     queuesBalanced: "No one is waiting",
     matchMode: "9×9 · 13×13 · 19×19",
     noAccount: "No account in the basic release",
-    liveTools: "7 live tools",
+    liveTools: "8 live tools",
     matchStepsTitle: "Three steps to a game",
     stepOne: "Take a seat",
     stepOneDetail: "You reserve the room",
@@ -344,8 +345,9 @@ export const copy = {
     rulesDetail: "Take turns · capture · no suicide",
     toolsTitle: "Available to AI",
     toolsDescription:
-      "The room registers these tools so an agent can read state and take its turn.",
+      "The room registers these tools so an agent can read state, wait for the human, and take its turn.",
     toolState: "Read board state",
+    toolWait: "Wait for the human",
     toolMove: "Submit a move",
     toolPass: "Pass a turn",
     toolResign: "End the game",

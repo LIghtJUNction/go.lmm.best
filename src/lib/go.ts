@@ -9,6 +9,57 @@ export type Point = {
   y: number;
 };
 
+export const GO_COLUMNS = "ABCDEFGHJKLMNOPQRST";
+
+export function formatGoCoordinate(point: Point, boardSize: number): string {
+  const column = GO_COLUMNS[point.x];
+  const row = boardSize - point.y;
+  return column && row >= 1 && row <= boardSize ? `${column}${row}` : "";
+}
+
+export function parseGoCoordinate(
+  coordinate: string,
+  boardSize: number,
+): Point | null {
+  const match = coordinate
+    .trim()
+    .toUpperCase()
+    .match(/^([A-HJ-T])(1[0-9]|[1-9])$/);
+  if (!match) return null;
+  const x = GO_COLUMNS.indexOf(match[1]);
+  const row = Number(match[2]);
+  if (x < 0 || x >= boardSize || row < 1 || row > boardSize) return null;
+  return { x, y: boardSize - row };
+}
+
+export function formatGoBoardForAgent(board: Board) {
+  const boardSize = board.length;
+  const columns = GO_COLUMNS.slice(0, boardSize).split("");
+  const stones = { black: [] as string[], white: [] as string[] };
+  let emptyCount = 0;
+  const rows = board.map((row, y) => {
+    const cells = row.map((cell, x) => {
+      if (!cell) {
+        emptyCount += 1;
+        return ".";
+      }
+      stones[cell].push(formatGoCoordinate({ x, y }, boardSize));
+      return cell === "black" ? "X" : "O";
+    });
+    return `${String(boardSize - y).padStart(2, " ")} ${cells.join(" ")}`;
+  });
+
+  return {
+    coordinateSystem:
+      "Standard Go coordinates: columns A-T omit I; row 1 is the bottom edge.",
+    legend: "X black, O white, . empty",
+    diagram: [`   ${columns.join(" ")}`, ...rows].join("\n"),
+    black: stones.black,
+    white: stones.white,
+    emptyCount,
+  };
+}
+
 export type MoveError = "occupied" | "suicide" | "repetition";
 
 export type MoveResult =

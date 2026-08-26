@@ -22,7 +22,6 @@
   pointer-events: none;
 }
 
-
 .board-line {
   position: absolute;
   display: block;
@@ -155,8 +154,9 @@
   display: grid;
   color: color-mix(in srgb, var(--board-line) 72%, transparent);
   font-family: var(--font-sans);
-  font-size: clamp(0.55rem, 1vw, 0.7rem);
+  font-size: clamp(0.75rem, 1.25vw, 0.875rem);
   font-weight: 600;
+  line-height: 1;
   pointer-events: none;
 }
 

@@ -6,6 +6,7 @@ export const GO_WEBMCP_BRIDGE_NAME = "goWebMCP";
 export const WEBMCP_TOOL_NAMES = [
   "join_go_match",
   "get_go_game_state",
+  "wait_for_go_turn",
   "play_go_move",
   "pass_go_turn",
   "resign_go_game",
@@ -59,8 +60,12 @@ export type WebMCPCallbacks = {
     displayName?: string;
   }) => unknown | Promise<unknown>;
   getGameState: () => unknown | Promise<unknown>;
+  waitForTurn: (
+    afterRevision: number,
+    timeoutMs: number,
+  ) => unknown | Promise<unknown>;
   playMove: (
-    point: Point,
+    move: Point | string,
     expectedRevision: number,
   ) => unknown | Promise<unknown>;
   passTurn: (expectedRevision: number) => unknown | Promise<unknown>;
@@ -90,7 +95,7 @@ function asRecord(input: unknown): Record<string, unknown> {
     : {};
 }
 
-function parsePoint(input: unknown): Point | null {
+function parsePoint(input: unknown): Point | string | null {
   const values = asRecord(input);
   const x = values.x;
   const y = values.y;
@@ -110,8 +115,7 @@ function parsePoint(input: unknown): Point | null {
     .toUpperCase()
     .match(/^([A-HJ-T])\s*(1[0-9]|[1-9])$/);
   if (!match) return null;
-  const letters = "ABCDEFGHJKLMNOPQRST";
-  return { x: letters.indexOf(match[1]), y: Number(match[2]) - 1 };
+  return `${match[1]}${match[2]}`;
 }
 
 function parseRevision(input: unknown): number | null {
@@ -185,15 +189,61 @@ function createTools(callbacks: WebMCPCallbacks): WebMCPTool[] {
     {
       name: "get_go_game_state",
       description:
-        "Read the queue/setup/game phase, board size, board, revision, turn, scoring request, messages, captures, and move log before acting.",
+        "Read the phase, revision, action required, compact ASCII board with standard Go coordinates, turn, scoring, messages, captures, and move log.",
       inputSchema: toolSchema(),
       execute: () => callbacks.getGameState(),
       annotations: { readOnlyHint: true },
     },
     {
+      name: "wait_for_go_turn",
+      description:
+        "Wait without polling while queued, during setup, or on the human turn. Returns when the AI can act, scoring needs a response, the game ends, the room stops, or the timeout expires.",
+      inputSchema: toolSchema(
+        {
+          afterRevision: {
+            type: "integer",
+            minimum: 0,
+            description:
+              "Latest revision returned by join_go_match, get_go_game_state, an AI action, or the previous wait result.",
+          },
+          timeoutMs: {
+            type: "integer",
+            minimum: 1000,
+            maximum: 120000,
+            default: 25000,
+            description:
+              "Maximum wait before returning a harmless still-waiting result.",
+          },
+        },
+        ["afterRevision"],
+      ),
+      execute: (input) => {
+        const values = asRecord(input);
+        const afterRevision = values.afterRevision;
+        const timeoutMs = values.timeoutMs ?? 25000;
+        if (
+          typeof afterRevision !== "number" ||
+          !Number.isInteger(afterRevision) ||
+          afterRevision < 0
+        ) {
+          return { ok: false, error: "invalid_revision" };
+        }
+        if (
+          typeof timeoutMs !== "number" ||
+          !Number.isInteger(timeoutMs) ||
+          timeoutMs < 1000 ||
+          timeoutMs > 120000
+        ) {
+          return { ok: false, error: "invalid_timeout" };
+        }
+        return callbacks.waitForTurn(afterRevision, timeoutMs);
+      },
+      annotations: { readOnlyHint: true },
+    },
+    {
       name: "play_go_move",
       description:
-        "Play a legal AI move. Read state first, then send its revision with x/y or a standard Go coordinate such as D4 or Q16.",
+        "Play a legal AI move. Use the latest revision and preferably a standard Go coordinate such as D4 or Q16; columns omit I.",
       inputSchema: toolSchema(
         {
           x: { type: "integer", minimum: 0, maximum: 18 },

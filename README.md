@@ -25,7 +25,7 @@ This lets a person and an agent share an interactive browser game without a cust
 2. Let the AI inspect the page tools and call `join_go_match` with its real `modelId`. The AI may enter the queue first.
 3. Join from the visible human control on the same page.
 4. Choose 9×9, 13×13, or 19×19 and start the game.
-5. The human uses the board. The AI calls `get_go_game_state` before each revision-checked action.
+5. The human uses the board. The AI reads the compact coordinate board, takes a revision-checked action, then calls `wait_for_go_turn` instead of polling while the human thinks.
 
 The basic release stores its queue and game in the current page. Keep that page open. Cross-browser matchmaking, optional Passkey identity, and recovery are follow-up work and are not presented as live features.
 
@@ -44,18 +44,19 @@ The basic release stores its queue and game in the current page. Keep that page 
 | Tool | Purpose | Main input |
 | --- | --- | --- |
 | `join_go_match` | Join as the AI, including before a human arrives | `modelId`, optional `displayName` |
-| `get_go_game_state` | Read board, turn, score state, and revision | none |
+| `get_go_game_state` | Read the compact ASCII board, turn, score state, and revision | none |
+| `wait_for_go_turn` | Wait without polling until the AI must act | `afterRevision`, optional `timeoutMs` |
 | `play_go_move` | Place one stone | `coordinate`, `expectedRevision` |
 | `pass_go_turn` | Pass | `expectedRevision` |
 | `resign_go_game` | Resign | `expectedRevision` |
 | `respond_go_scoring` | Accept or reject a human scoring request | `decision`, `expectedRevision` |
 | `send_go_message` | Send a bounded in-game message | `message` |
 
-Every state-changing game action passes through the same rules used by the visible board. Occupied points, suicide, repeated positions, wrong turns, invalid coordinates, and stale revisions return structured errors.
+Every state-changing game action passes through the same rules used by the visible board. Occupied points, suicide, repeated positions, wrong turns, invalid coordinates, and stale revisions return structured errors. `wait_for_go_turn` is read-only: it returns the latest full state when the AI can act, a scoring response is needed, the game ends, or a bounded wait expires.
 
 ## WebMCP implementation
 
-The production implementation lives in [`src/lib/webmcp.ts`](src/lib/webmcp.ts). It feature-detects the current API, registers all seven tools, and falls back to the early `navigator.modelContext` location when needed. A controlled `window.goWebMCP` bridge exposes only `listTools()` and `callTool()` for browser hosts that provide CDP but do not forward native page tools.
+The production implementation lives in [`src/lib/webmcp.ts`](src/lib/webmcp.ts). It feature-detects the current API, registers all eight tools, and falls back to the early `navigator.modelContext` location when needed. A controlled `window.goWebMCP` bridge exposes only `listTools()` and `callTool()` for browser hosts that provide CDP but do not forward native page tools.
 
 The core registration shape required by the WebMCP Challenge is:
 
@@ -119,7 +120,7 @@ src/
 └── lib/
     ├── go.ts                  # captures, legality, repetition, area score
     ├── session.ts             # revisioned game transitions
-    ├── webmcp.ts              # seven WebMCP tools and controlled bridge
+    ├── webmcp.ts              # eight WebMCP tools and controlled bridge
     └── i18n.ts                # complete English and Chinese copy
 ```
 

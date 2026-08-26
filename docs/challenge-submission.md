@@ -11,7 +11,7 @@
 
 ### Why this use case fits WebMCP
 
-A Go-playing agent needs an exact board, a known turn, and a legal way to act. Screen scraping turns each intersection into an ambiguous visual target. A chat-only interface makes the agent invent its own state. go.lmm.best exposes seven typed WebMCP tools for joining, reading the game, playing, passing, resigning, scoring, and speaking.
+A Go-playing agent needs an exact board, a known turn, and a legal way to act. Screen scraping turns each intersection into an ambiguous visual target. A chat-only interface makes the agent invent its own state. go.lmm.best exposes eight typed WebMCP tools for joining, reading the game, waiting without polling, playing, passing, resigning, scoring, and speaking.
 
 The page keeps the rules. Each game action includes the revision the agent last read. The page rejects stale revisions, wrong turns, occupied points, suicide, and repeated positions. The agent can reason about Go instead of operating the interface.
 
@@ -19,7 +19,7 @@ The page keeps the rules. Each game action includes the revision the agent last 
 
 The person gets a responsive Go board with familiar controls. The agent gets structured JSON and narrow actions. Both use the same game state, move history, messages, and scoring result.
 
-The AI may enter the queue before the human. Once matched, the human chooses 9×9, 13×13, or 19×19. The agent can also answer a scoring request and send a message during either turn. None of these actions require a custom extension written for one model provider.
+The AI may enter the queue before the human. Once matched, the human chooses 9×9, 13×13, or 19×19. After each move, the agent can block on `wait_for_go_turn` while the person thinks instead of repeatedly fetching unchanged state. The agent can also answer a scoring request and send a message during either turn. None of these actions require a custom extension written for one model provider.
 
 ### What people and agents can do together
 
@@ -27,7 +27,7 @@ A person can open a public web page, invite an agent, and play a rule-checked bo
 
 ### WebMCP implementation
 
-`src/lib/webmcp.ts` builds seven tools with JSON input schemas and registers them through the imperative Model Context API. The implementation checks `document.modelContext` first and retains the early `navigator.modelContext` location for compatible preview hosts. Registrations use an `AbortSignal` for cleanup.
+`src/lib/webmcp.ts` builds eight tools with JSON input schemas and registers them through the imperative Model Context API. The implementation checks `document.modelContext` first and retains the early `navigator.modelContext` location for compatible preview hosts. Registrations use an `AbortSignal` for cleanup.
 
 Hosts that expose CDP without forwarding native tools can use a controlled compatibility bridge. It exposes only `window.goWebMCP.listTools()` and `window.goWebMCP.callTool(name, input)`. It does not expose React state, the DOM, or arbitrary script helpers.
 
@@ -40,10 +40,10 @@ Target length: **2 minutes 35 seconds**. Record at 1440×900 with browser audio 
 | Time | Picture | Narration |
 | --- | --- | --- |
 | 0:00–0:12 | Open `go.lmm.best`; show the lobby and live URL. | “This is go.lmm.best, a Go room where a person uses the board and an AI uses WebMCP.” |
-| 0:12–0:30 | Open the WebMCP tool list. Point to all seven tools. | “The page exposes typed tools for matchmaking, state, moves, passing, resigning, scoring, and messages.” |
+| 0:12–0:30 | Open the WebMCP tool list. Point to all eight tools. | “The page exposes typed tools for matchmaking, state, waiting, moves, passing, resigning, scoring, and messages.” |
 | 0:30–0:48 | Call `join_go_match` before clicking the human action. Show the AI waiting state. | “The agent can arrive first. It identifies its real model and waits in the AI side of the queue.” |
 | 0:48–1:02 | Click “Join this AI”; choose 13×13 and start. | “The human joins from the page and chooses the board only after the match forms.” |
-| 1:02–1:25 | Call `get_go_game_state`, then `play_go_move` with its revision. Show the stone animate onto the board. | “The agent reads an exact revision and submits one coordinate. The visual board and the tool state update together.” |
+| 1:02–1:25 | Start `wait_for_go_turn`, place a human stone, then use the returned compact board and revision with `play_go_move`. | “The agent waits without polling while the person thinks, then receives an exact coordinate board and submits one move.” |
 | 1:25–1:40 | Replay the old revision and show the structured stale-revision error. | “Replaying a stale action fails. The page, not the model, owns turn and revision safety.” |
 | 1:40–1:57 | Send one human message and one `send_go_message` tool call; briefly enable then disable board comments. | “Both participants can speak without mixing prose into the move protocol. Board comments remain optional.” |
 | 1:57–2:18 | Human requests scoring; call `respond_go_scoring` with `accept`; show the score. | “The human asks to score. The AI accepts with the current revision, and the same rules produce the final area score with komi.” |
@@ -64,7 +64,8 @@ Target length: **2 minutes 35 seconds**. Record at 1440×900 with browser audio 
 
 - [ ] `https://go.lmm.best` returns 200 without credentials.
 - [ ] ChatGPT's in-app browser discovers `join_go_match`.
-- [ ] Chrome 149+ with `#enable-webmcp-testing` discovers all seven tools.
+- [ ] Chrome 149+ with `#enable-webmcp-testing` discovers all eight tools.
+- [ ] `wait_for_go_turn` resolves after a human move and does not poll state.
 - [ ] AI-first and human-first queue paths both reach board setup.
 - [ ] A legal move succeeds with the latest revision.
 - [ ] The same action fails with a stale revision.

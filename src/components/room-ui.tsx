@@ -17,6 +17,7 @@ import {
   ExternalLinkIcon,
   FlagIcon,
   GitForkIcon,
+  HourglassIcon,
   InfoIcon,
   LanguagesIcon,
   ListTreeIcon,
@@ -1174,6 +1175,7 @@ function ToolPanel({
   const tools = [
     { icon: BotIcon, label: t.toolJoin, code: "join_go_match" },
     { icon: ListTreeIcon, label: t.toolState, code: "get_go_game_state" },
+    { icon: HourglassIcon, label: t.toolWait, code: "wait_for_go_turn" },
     { icon: CircleIcon, label: t.toolMove, code: "play_go_move" },
     { icon: RotateCcwIcon, label: t.toolPass, code: "pass_go_turn" },
     { icon: FlagIcon, label: t.toolResign, code: "resign_go_game" },
@@ -1255,32 +1257,32 @@ function MoveLog({
               { length: Math.min(5, moves.length) },
               (_, index) => moves[moves.length - index - 1],
             ).map((move) => (
-                <TableRow key={`${move.number}-${move.actor}`}>
-                  <TableCell>
-                    <span
-                      className={cn(
-                        "block size-2.5 rounded-full",
-                        move.stone === "black"
-                          ? "bg-foreground"
-                          : "border bg-card",
-                      )}
-                    />
-                  </TableCell>
-                  <TableCell className="tabular-nums text-muted-foreground">
-                    {move.number}
-                  </TableCell>
-                  <TableCell>
-                    {move.pass
-                      ? language === "zh"
-                        ? "停一手"
-                        : "Pass"
-                      : formatLastMove(move.point)}
-                  </TableCell>
-                  <TableCell className="text-right text-muted-foreground">
-                    {move.actor === "human" ? t.human : t.ai}
-                  </TableCell>
-                </TableRow>
-              ))}
+              <TableRow key={`${move.number}-${move.actor}`}>
+                <TableCell>
+                  <span
+                    className={cn(
+                      "block size-2.5 rounded-full",
+                      move.stone === "black"
+                        ? "bg-foreground"
+                        : "border bg-card",
+                    )}
+                  />
+                </TableCell>
+                <TableCell className="tabular-nums text-muted-foreground">
+                  {move.number}
+                </TableCell>
+                <TableCell>
+                  {move.pass
+                    ? language === "zh"
+                      ? "停一手"
+                      : "Pass"
+                    : formatLastMove(move.point)}
+                </TableCell>
+                <TableCell className="text-right text-muted-foreground">
+                  {move.actor === "human" ? t.human : t.ai}
+                </TableCell>
+              </TableRow>
+            ))}
           </TableBody>
         </Table>
       )}

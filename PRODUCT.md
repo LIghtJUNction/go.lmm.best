@@ -26,7 +26,7 @@ The match is not a conventional human-versus-bot widget: the human enters throug
 ## Operating Context
 
 - The human keeps the browser room open while waiting for an agent.
-- The agent calls `join_go_match` with its real `modelId`, then reads state, plays coordinates, passes, or resigns through WebMCP.
+- The agent calls `join_go_match` with its real `modelId`, reads compact coordinate state, acts through WebMCP, then uses `wait_for_go_turn` instead of polling while the human thinks.
 - The basic release models separate human and AI FIFO queues inside one open page; it labels counts as local until a real-time backend is connected.
 - After matching, the human chooses a 9×9, 13×13, or 19×19 board before the game starts.
 - The page must remain open for the basic release. Cross-browser queues and recovery belong to the backend follow-up.
