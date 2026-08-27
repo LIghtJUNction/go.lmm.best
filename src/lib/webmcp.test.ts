@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { z } from "zod";
 import type { Point } from "./go.js";
 import { registerWebMCPTools, type WebMCPCallbacks } from "./webmcp.js";
 
@@ -8,6 +9,7 @@ type RegisteredTool = {
     properties: Record<string, unknown>;
     required?: string[];
   };
+  outputSchema: Record<string, unknown>;
   execute: (input: unknown) => unknown | Promise<unknown>;
 };
 
@@ -54,10 +56,285 @@ describe("WebMCP tool registration", () => {
 
     await vi.waitFor(() => expect(tools.size).toBe(8));
     for (const tool of tools.values()) {
+      expect(tool.description).toContain("outputSchema");
       expect(tool.description).toContain("Success result:");
       expect(tool.description).toContain("Failure result:");
+      expect(tool.outputSchema).toMatchObject({ oneOf: expect.any(Array) });
+      expect(() =>
+        z.fromJSONSchema(
+          tool.outputSchema as Parameters<typeof z.fromJSONSchema>[0],
+        ),
+      ).not.toThrow();
     }
+
+    const getStateParser = z.fromJSONSchema(
+      tools.get("get_go_game_state")?.outputSchema as Parameters<
+        typeof z.fromJSONSchema
+      >[0],
+    );
+    const nonPlayingStates = [
+      {
+        ok: true,
+        phase: "idle",
+        revision: 0,
+        latestHumanMessageId: 0,
+        actionRequired: "join_go_match",
+      },
+      {
+        ok: true,
+        phase: "queue",
+        revision: 0,
+        latestHumanMessageId: 0,
+        queueSide: "human",
+        queuePosition: 1,
+        modelId: null,
+        actionRequired: "join_go_match",
+      },
+      {
+        ok: true,
+        phase: "setup",
+        revision: 0,
+        latestHumanMessageId: 0,
+        modelId: "openai/gpt-5",
+        boardOptions: [9, 13, 19],
+        defaultBoardSize: 9,
+        message: "The human must choose the board size.",
+        actionRequired: "wait_for_go_turn",
+      },
+    ];
+    for (const state of nonPlayingStates) {
+      expect(getStateParser.parse(state)).toEqual(state);
+    }
+
+    const playingState = {
+      ok: true,
+      phase: "playing",
+      revision: 13,
+      latestHumanMessageId: 1,
+      actionRequired: "wait_for_go_turn",
+      boardSize: 9,
+      board: {
+        coordinateSystem:
+          "Standard Go coordinates: columns A-T omit I; row 1 is the bottom edge.",
+        legend: "X black, O white, . empty",
+        diagram: "  A B C D E F G H J\n9 . . . . . . . . .",
+        black: ["D4"],
+        white: ["E6"],
+        emptyCount: 79,
+      },
+      turn: "black",
+      turnActor: "human",
+      aiColor: "white",
+      humanColor: "black",
+      captures: { black: 0, white: 0 },
+      moves: [
+        {
+          number: 1,
+          point: { x: 3, y: 5 },
+          stone: "black",
+          captured: 0,
+          actor: "human",
+          coordinate: "D4",
+        },
+        {
+          number: 2,
+          point: { x: 4, y: 3 },
+          stone: "white",
+          captured: 0,
+          actor: "ai",
+          coordinate: "E6",
+        },
+      ],
+      lastMove: "E6",
+      scoring: { status: "idle" },
+      messages: [
+        {
+          id: 1,
+          actor: "human",
+          text: "Your move.",
+          moveNumber: 2,
+          createdAt: 1_700_000_000_000,
+        },
+      ],
+      endReason: null,
+    };
+    expect(getStateParser.parse(playingState)).toEqual(playingState);
+    const score = {
+      method: "chinese-tromp-taylor-area",
+      komi: 7.5,
+      black: { stones: 1, territory: 0, total: 1 },
+      white: { stones: 1, territory: 0, total: 8.5 },
+      neutral: 79,
+      winner: "white",
+      margin: 7.5,
+    };
+    expect(
+      getStateParser.parse({
+        ...playingState,
+        actionRequired: "respond_go_scoring",
+        scoring: {
+          status: "pending",
+          requestedBy: "human",
+          requestRevision: 13,
+          preview: score,
+        },
+      }),
+    ).toMatchObject({ scoring: { status: "pending" } });
+    expect(
+      getStateParser.parse({
+        ...playingState,
+        phase: "finished",
+        actionRequired: "game_finished",
+        moves: [
+          ...playingState.moves,
+          {
+            number: 3,
+            stone: "black",
+            captured: 0,
+            actor: "human",
+            pass: true,
+            coordinate: "pass",
+          },
+        ],
+        scoring: { status: "complete", result: score },
+        endReason: "scored",
+      }),
+    ).toMatchObject({ phase: "finished", endReason: "scored" });
+    expect(() =>
+      getStateParser.parse({
+        ...playingState,
+        phase: "finished",
+        actionRequired: "game_finished",
+        endReason: null,
+      }),
+    ).toThrow();
+    expect(() =>
+      getStateParser.parse({
+        ...playingState,
+        actionRequired: "game_finished",
+      }),
+    ).toThrow();
+    expect(() =>
+      getStateParser.parse({
+        ...playingState,
+        actionRequired: "respond_go_scoring",
+        scoring: {
+          status: "pending",
+          requestedBy: "human",
+          requestRevision: 13,
+          preview: { ...score, winner: "tie", margin: 0 },
+        },
+      }),
+    ).toThrow();
+    expect(() =>
+      getStateParser.parse({
+        ...playingState,
+        board: { ...playingState.board, unexpected: true },
+      }),
+    ).toThrow();
+
+    const waitParser = z.fromJSONSchema(
+      tools.get("wait_for_go_turn")?.outputSchema as Parameters<
+        typeof z.fromJSONSchema
+      >[0],
+    );
+    expect(
+      waitParser.parse({
+        ...playingState,
+        waitStatus: "waiting",
+        waitReason: "timeout",
+        afterRevision: 13,
+        afterMessageId: 1,
+      }),
+    ).toMatchObject({ waitStatus: "waiting", waitReason: "timeout" });
+    expect(() =>
+      waitParser.parse({
+        ...playingState,
+        waitStatus: "ready",
+        waitReason: "timeout",
+        afterRevision: 13,
+        afterMessageId: 1,
+      }),
+    ).toThrow();
+    expect(() =>
+      waitParser.parse({
+        ...playingState,
+        turn: "white",
+        turnActor: "ai",
+        waitStatus: "waiting",
+        waitReason: "timeout",
+        afterRevision: 13,
+        afterMessageId: 1,
+      }),
+    ).toThrow();
+
     const playTool = tools.get("play_go_move");
+    const playOutputParser = z.fromJSONSchema(
+      playTool?.outputSchema as Parameters<typeof z.fromJSONSchema>[0],
+    );
+    expect(
+      playOutputParser.parse({
+        ok: true,
+        revision: 14,
+        latestHumanMessageId: 1,
+        phase: "playing",
+      }),
+    ).toMatchObject({ ok: true, revision: 14 });
+    expect(
+      playOutputParser.parse({
+        ok: false,
+        error: "occupied",
+        currentRevision: 13,
+      }),
+    ).toMatchObject({ ok: false, error: "occupied" });
+    expect(() =>
+      playOutputParser.parse({ ok: false, error: "occupied" }),
+    ).toThrow();
+    expect(() =>
+      playOutputParser.parse({
+        ok: false,
+        error: "invalid_coordinate",
+        currentRevision: 13,
+      }),
+    ).toThrow();
+    expect(() =>
+      playOutputParser.parse({ ok: false, error: "unknown_error" }),
+    ).toThrow();
+
+    for (const [toolName, sessionError] of [
+      ["pass_go_turn", "wrong_turn"],
+      ["resign_go_game", "stale_state"],
+      ["respond_go_scoring", "scoring_not_pending"],
+    ] as const) {
+      const parser = z.fromJSONSchema(
+        tools.get(toolName)?.outputSchema as Parameters<
+          typeof z.fromJSONSchema
+        >[0],
+      );
+      expect(
+        parser.parse({
+          ok: false,
+          error: sessionError,
+          currentRevision: 13,
+        }),
+      ).toMatchObject({ error: sessionError, currentRevision: 13 });
+      expect(() => parser.parse({ ok: false, error: sessionError })).toThrow();
+      expect(parser.parse({ ok: false, error: "invalid_revision" })).toEqual({
+        ok: false,
+        error: "invalid_revision",
+      });
+      expect(() =>
+        parser.parse({
+          ok: false,
+          error: "invalid_revision",
+          currentRevision: 13,
+        }),
+      ).toThrow();
+      expect(() =>
+        parser.parse({ ok: false, error: "game_finished" }),
+      ).toThrow();
+    }
+
     expect(Object.keys(playTool?.inputSchema.properties ?? {})).toEqual([
       "coordinate",
       "expectedRevision",
@@ -66,9 +343,10 @@ describe("WebMCP tool registration", () => {
       "coordinate",
       "expectedRevision",
     ]);
-    expect(
-      playTool?.execute({ x: 3, y: 4, expectedRevision: 9 }),
-    ).toEqual({ ok: false, error: "invalid_coordinate" });
+    expect(playTool?.execute({ x: 3, y: 4, expectedRevision: 9 })).toEqual({
+      ok: false,
+      error: "invalid_coordinate",
+    });
 
     await expect(tools.get("join_go_match")?.execute({})).resolves.toEqual({
       ok: false,

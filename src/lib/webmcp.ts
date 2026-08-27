@@ -1,24 +1,20 @@
 import type { Point } from "./go.js";
+import {
+  type JsonSchema,
+  WEBMCP_OUTPUT_SCHEMAS,
+} from "@/lib/webmcp-output-schemas";
 
 export type WebMCPStatus = "checking" | "available" | "bridge" | "unsupported";
 
-export const GO_WEBMCP_BRIDGE_NAME = "goWebMCP";
-export const WEBMCP_TOOL_NAMES = [
-  "join_go_match",
-  "get_go_game_state",
-  "wait_for_go_turn",
-  "play_go_move",
-  "pass_go_turn",
-  "resign_go_game",
-  "respond_go_scoring",
-  "send_go_message",
-] as const;
+const GO_WEBMCP_BRIDGE_NAME = "goWebMCP";
+type JsonObject = { [key: string]: JsonValue | undefined };
+type JsonValue = string | number | boolean | null | JsonObject | JsonValue[];
 
-export type GoWebMCPBridge = {
+type GoWebMCPBridge = {
   readonly version: 1;
   readonly source: "go.lmm.best";
   listTools: () => string[];
-  callTool: (name: string, input?: unknown) => Promise<unknown>;
+  callTool: (name: string, input?: JsonValue) => Promise<unknown>;
 };
 
 declare global {
@@ -27,12 +23,13 @@ declare global {
   }
 }
 
-type ToolHandler = (input: unknown) => unknown | Promise<unknown>;
+type ToolHandler = (input?: JsonValue) => unknown | Promise<unknown>;
 
 type WebMCPTool = {
   name: string;
   description: string;
-  inputSchema: Record<string, unknown>;
+  inputSchema: JsonSchema;
+  outputSchema: JsonSchema;
   execute: ToolHandler;
   annotations?: {
     readOnlyHint?: boolean;
@@ -78,27 +75,40 @@ export type WebMCPCallbacks = {
   sendMessage: (message: string) => unknown | Promise<unknown>;
 };
 
-function getModelContext(): WebMCPModelContext | undefined {
-  if (typeof document !== "undefined") {
-    const currentApi = (document as DocumentWithModelContext).modelContext;
-    if (currentApi) return currentApi;
-  }
+type RuntimeGlobals = {
+  document?: DocumentWithModelContext;
+  navigator?: NavigatorWithModelContext;
+  window?: Window;
+};
 
-  if (typeof navigator !== "undefined") {
-    return (navigator as NavigatorWithModelContext).modelContext;
-  }
-  return undefined;
+const runtimeGlobals = globalThis as RuntimeGlobals;
+
+function getModelContext(): WebMCPModelContext | undefined {
+  const currentApi = runtimeGlobals.document?.modelContext;
+  if (currentApi) return currentApi;
+  return runtimeGlobals.navigator?.modelContext;
 }
 
-function asRecord(input: unknown): Record<string, unknown> {
-  return typeof input === "object" && input !== null
-    ? (input as Record<string, unknown>)
+function isString(value: JsonValue | undefined): value is string {
+  return typeof value === "string";
+}
+
+function isNonNegativeInteger(value: JsonValue | undefined): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0;
+}
+
+function asRecord(input: JsonValue | undefined): JsonObject {
+  return input !== null &&
+    input !== undefined &&
+    !Array.isArray(input) &&
+    Object(input) === input
+    ? (input as JsonObject)
     : {};
 }
 
-function parseCoordinate(input: unknown): string | null {
+function parseCoordinate(input: JsonValue | undefined): string | null {
   const coordinate = asRecord(input).coordinate;
-  if (typeof coordinate !== "string") return null;
+  if (!isString(coordinate)) return null;
   const match = coordinate
     .trim()
     .toUpperCase()
@@ -107,19 +117,15 @@ function parseCoordinate(input: unknown): string | null {
   return `${match[1]}${match[2]}`;
 }
 
-function parseRevision(input: unknown): number | null {
+function parseRevision(input: JsonValue | undefined): number | null {
   const revision = asRecord(input).expectedRevision;
-  return typeof revision === "number" &&
-    Number.isInteger(revision) &&
-    revision >= 0
-    ? revision
-    : null;
+  return isNonNegativeInteger(revision) ? revision : null;
 }
 
 function toolSchema(
-  properties: Record<string, unknown> = {},
+  properties: Record<string, JsonSchema> = {},
   required: string[] = [],
-) {
+): JsonSchema {
   return {
     type: "object",
     properties,
@@ -128,7 +134,7 @@ function toolSchema(
   };
 }
 
-function revisionSchema() {
+function revisionSchema(): Record<string, JsonSchema> {
   return {
     expectedRevision: {
       type: "integer",
@@ -138,230 +144,255 @@ function revisionSchema() {
   };
 }
 
-function toolDescription(summary: string, successShape: string): string {
-  return `${summary} Success result: ${successShape}. Failure result: { ok: false, error: string, ... }.`;
+function toolDescription(summary: string, successContract: string): string {
+  return `${summary} The formal result contract is declared in outputSchema. Success result: ${successContract}. Failure result: { ok: false, error: string, ... }.`;
+}
+
+function createJoinMatchTool(callbacks: WebMCPCallbacks): WebMCPTool {
+  return {
+    name: "join_go_match",
+    description: toolDescription(
+      "Join the FIFO human-vs-AI Go queue with a real model ID. If no human is waiting, the AI remains queued until a human arrives.",
+      '{ ok: true, status: "queued" | "matched", revision: integer, latestHumanMessageId: integer, actionRequired: string, ... }',
+    ),
+    inputSchema: toolSchema(
+      {
+        modelId: {
+          type: "string",
+          minLength: 1,
+          maxLength: 120,
+          description:
+            "Required real model identifier, for example openai/gpt-5.6-sol.",
+        },
+        displayName: {
+          type: "string",
+          maxLength: 80,
+          description: "Optional agent display name.",
+        },
+      },
+      ["modelId"],
+    ),
+    outputSchema: WEBMCP_OUTPUT_SCHEMAS.join_go_match,
+    execute: async (input) => {
+      const values = asRecord(input);
+      const modelId = isString(values.modelId) ? values.modelId.trim() : "";
+      if (!modelId) return { ok: false, error: "model_id_required" };
+      return callbacks.joinMatch({
+        modelId,
+        displayName: isString(values.displayName)
+          ? values.displayName.trim() || undefined
+          : undefined,
+      });
+    },
+  };
+}
+
+function createGetGameStateTool(callbacks: WebMCPCallbacks): WebMCPTool {
+  return {
+    name: "get_go_game_state",
+    description: toolDescription(
+      "Read the phase, revision, action required, compact ASCII board with standard Go coordinates, turn, scoring, messages, captures, and move log.",
+      "a phase-discriminated object; playing/finished adds boardSize, board { coordinateSystem, legend, diagram, black, white, emptyCount }, colors, captures, moves, scoring, messages, endReason, and revision",
+    ),
+    inputSchema: toolSchema(),
+    outputSchema: WEBMCP_OUTPUT_SCHEMAS.get_go_game_state,
+    execute: () => callbacks.getGameState(),
+    annotations: { readOnlyHint: true },
+  };
+}
+
+function createWaitForTurnTool(callbacks: WebMCPCallbacks): WebMCPTool {
+  return {
+    name: "wait_for_go_turn",
+    description: toolDescription(
+      "Wait without polling while queued, during setup, or on the human turn. Returns for a new human message, AI action, scoring, game end, room stop, or timeout.",
+      '{ ok: true, waitStatus: "ready" | "waiting" | "stopped", waitReason: string, phase: string, revision: integer, ... }',
+    ),
+    inputSchema: toolSchema(
+      {
+        afterRevision: {
+          type: "integer",
+          minimum: 0,
+          description:
+            "Latest revision returned by join_go_match, get_go_game_state, an AI action, or the previous wait result.",
+        },
+        afterMessageId: {
+          type: "integer",
+          minimum: 0,
+          description:
+            "Latest human message ID already observed. Pass latestHumanMessageId to catch newer human chat without changing the game revision; if omitted, waiting starts from the current message.",
+        },
+        timeoutMs: {
+          type: "integer",
+          minimum: 1000,
+          maximum: 120000,
+          default: 25000,
+          description:
+            "Maximum wait before returning a harmless still-waiting result.",
+        },
+      },
+      ["afterRevision"],
+    ),
+    outputSchema: WEBMCP_OUTPUT_SCHEMAS.wait_for_go_turn,
+    execute: (input) => {
+      const values = asRecord(input);
+      const afterRevision = values.afterRevision;
+      const afterMessageId = values.afterMessageId ?? null;
+      const timeoutMs = values.timeoutMs ?? 25000;
+      if (!isNonNegativeInteger(afterRevision)) {
+        return { ok: false, error: "invalid_revision" };
+      }
+      if (afterMessageId !== null && !isNonNegativeInteger(afterMessageId)) {
+        return { ok: false, error: "invalid_message_id" };
+      }
+      if (
+        !isNonNegativeInteger(timeoutMs) ||
+        timeoutMs < 1000 ||
+        timeoutMs > 120000
+      ) {
+        return { ok: false, error: "invalid_timeout" };
+      }
+      return callbacks.waitForTurn(afterRevision, afterMessageId, timeoutMs);
+    },
+    annotations: { readOnlyHint: true },
+  };
+}
+
+function createPlayMoveTool(callbacks: WebMCPCallbacks): WebMCPTool {
+  return {
+    name: "play_go_move",
+    description: toolDescription(
+      "Play a legal AI move using exactly one standard Go coordinate such as D4 or Q16; columns omit I. Do not send x/y fields.",
+      '{ ok: true, revision: integer, latestHumanMessageId: integer, phase: "playing" | "finished" }',
+    ),
+    inputSchema: toolSchema(
+      {
+        coordinate: {
+          type: "string",
+          pattern: "^[A-HJ-T](1[0-9]|[1-9])$",
+          description:
+            "Required standard Go coordinate. Use a letter A-H or J-T plus row 1-19; x/y fields are not accepted.",
+        },
+        ...revisionSchema(),
+      },
+      ["coordinate", "expectedRevision"],
+    ),
+    outputSchema: WEBMCP_OUTPUT_SCHEMAS.play_go_move,
+    execute: (input) => {
+      const point = parseCoordinate(input);
+      const revision = parseRevision(input);
+      if (!point) return { ok: false, error: "invalid_coordinate" };
+      return revision === null
+        ? { ok: false, error: "invalid_revision" }
+        : callbacks.playMove(point, revision);
+    },
+  };
+}
+
+function createPassTurnTool(callbacks: WebMCPCallbacks): WebMCPTool {
+  return {
+    name: "pass_go_turn",
+    description: toolDescription(
+      "Pass the AI turn using the latest revision. Two consecutive passes finish and score the game.",
+      '{ ok: true, revision: integer, latestHumanMessageId: integer, phase: "playing" | "finished" }',
+    ),
+    inputSchema: toolSchema(revisionSchema(), ["expectedRevision"]),
+    outputSchema: WEBMCP_OUTPUT_SCHEMAS.pass_go_turn,
+    execute: (input) => {
+      const revision = parseRevision(input);
+      return revision === null
+        ? { ok: false, error: "invalid_revision" }
+        : callbacks.passTurn(revision);
+    },
+  };
+}
+
+function createResignGameTool(callbacks: WebMCPCallbacks): WebMCPTool {
+  return {
+    name: "resign_go_game",
+    description: toolDescription(
+      "Resign the current game using the latest revision.",
+      '{ ok: true, revision: integer, latestHumanMessageId: integer, phase: "finished" }',
+    ),
+    inputSchema: toolSchema(revisionSchema(), ["expectedRevision"]),
+    outputSchema: WEBMCP_OUTPUT_SCHEMAS.resign_go_game,
+    execute: (input) => {
+      const revision = parseRevision(input);
+      return revision === null
+        ? { ok: false, error: "invalid_revision" }
+        : callbacks.resignGame(revision);
+    },
+  };
+}
+
+function createRespondScoringTool(callbacks: WebMCPCallbacks): WebMCPTool {
+  return {
+    name: "respond_go_scoring",
+    description: toolDescription(
+      "Accept or reject the human scoring request using its latest revision. Acceptance ends the game with Chinese-style area scoring and White +7.5 komi.",
+      '{ ok: true, revision: integer, latestHumanMessageId: integer, phase: "playing" | "finished" }',
+    ),
+    inputSchema: toolSchema(
+      {
+        decision: { type: "string", enum: ["accept", "reject"] },
+        ...revisionSchema(),
+      },
+      ["decision", "expectedRevision"],
+    ),
+    outputSchema: WEBMCP_OUTPUT_SCHEMAS.respond_go_scoring,
+    execute: (input) => {
+      const values = asRecord(input);
+      const revision = parseRevision(input);
+      const decision = values.decision;
+      if (decision !== "accept" && decision !== "reject") {
+        return { ok: false, error: "invalid_scoring_decision" };
+      }
+      return revision === null
+        ? { ok: false, error: "invalid_revision" }
+        : callbacks.respondScoring(decision, revision);
+    },
+  };
+}
+
+function createSendMessageTool(callbacks: WebMCPCallbacks): WebMCPTool {
+  return {
+    name: "send_go_message",
+    description: toolDescription(
+      "Send one plain-text AI message to the human during the current game. Maximum 240 characters.",
+      "{ ok: true, messageId: integer, latestHumanMessageId: integer }",
+    ),
+    inputSchema: toolSchema(
+      {
+        message: { type: "string", minLength: 1, maxLength: 240 },
+      },
+      ["message"],
+    ),
+    outputSchema: WEBMCP_OUTPUT_SCHEMAS.send_go_message,
+    execute: (input) => {
+      const message = asRecord(input).message;
+      return isString(message)
+        ? callbacks.sendMessage(message)
+        : { ok: false, error: "message_required" };
+    },
+  };
 }
 
 function createTools(callbacks: WebMCPCallbacks): WebMCPTool[] {
   return [
-    {
-      name: "join_go_match",
-      description: toolDescription(
-        "Join the FIFO human-vs-AI Go queue with a real model ID. If no human is waiting, the AI remains queued until a human arrives.",
-        '{ ok: true, status: "queued" | "matched", revision: integer, latestHumanMessageId: integer, actionRequired: string, ... }',
-      ),
-      inputSchema: toolSchema(
-        {
-          modelId: {
-            type: "string",
-            minLength: 1,
-            maxLength: 120,
-            description:
-              "Required real model identifier, for example openai/gpt-5.6-sol.",
-          },
-          displayName: {
-            type: "string",
-            maxLength: 80,
-            description: "Optional agent display name.",
-          },
-        },
-        ["modelId"],
-      ),
-      execute: async (input) => {
-        const values = asRecord(input);
-        const modelId =
-          typeof values.modelId === "string" ? values.modelId.trim() : "";
-        if (!modelId) return { ok: false, error: "model_id_required" };
-        return callbacks.joinMatch({
-          modelId,
-          displayName:
-            typeof values.displayName === "string"
-              ? values.displayName.trim() || undefined
-              : undefined,
-        });
-      },
-    },
-    {
-      name: "get_go_game_state",
-      description: toolDescription(
-        "Read the phase, revision, action required, compact ASCII board with standard Go coordinates, turn, scoring, messages, captures, and move log.",
-        "{ ok: true, phase: string, revision: integer, latestHumanMessageId: integer, actionRequired: string, ... }",
-      ),
-      inputSchema: toolSchema(),
-      execute: () => callbacks.getGameState(),
-      annotations: { readOnlyHint: true },
-    },
-    {
-      name: "wait_for_go_turn",
-      description: toolDescription(
-        "Wait without polling while queued, during setup, or on the human turn. Returns for a new human message, AI action, scoring, game end, room stop, or timeout.",
-        '{ ok: true, waitStatus: "ready" | "waiting" | "stopped", waitReason: string, phase: string, revision: integer, ... }',
-      ),
-      inputSchema: toolSchema(
-        {
-          afterRevision: {
-            type: "integer",
-            minimum: 0,
-            description:
-              "Latest revision returned by join_go_match, get_go_game_state, an AI action, or the previous wait result.",
-          },
-          afterMessageId: {
-            type: "integer",
-            minimum: 0,
-            description:
-              "Latest human message ID already observed. Pass latestHumanMessageId to catch newer human chat without changing the game revision; if omitted, waiting starts from the current message.",
-          },
-          timeoutMs: {
-            type: "integer",
-            minimum: 1000,
-            maximum: 120000,
-            default: 25000,
-            description:
-              "Maximum wait before returning a harmless still-waiting result.",
-          },
-        },
-        ["afterRevision"],
-      ),
-      execute: (input) => {
-        const values = asRecord(input);
-        const afterRevision = values.afterRevision;
-        const afterMessageId = values.afterMessageId ?? null;
-        const timeoutMs = values.timeoutMs ?? 25000;
-        if (
-          typeof afterRevision !== "number" ||
-          !Number.isInteger(afterRevision) ||
-          afterRevision < 0
-        ) {
-          return { ok: false, error: "invalid_revision" };
-        }
-        if (
-          afterMessageId !== null &&
-          (typeof afterMessageId !== "number" ||
-            !Number.isInteger(afterMessageId) ||
-            afterMessageId < 0)
-        ) {
-          return { ok: false, error: "invalid_message_id" };
-        }
-        if (
-          typeof timeoutMs !== "number" ||
-          !Number.isInteger(timeoutMs) ||
-          timeoutMs < 1000 ||
-          timeoutMs > 120000
-        ) {
-          return { ok: false, error: "invalid_timeout" };
-        }
-        return callbacks.waitForTurn(
-          afterRevision,
-          afterMessageId as number | null,
-          timeoutMs,
-        );
-      },
-      annotations: { readOnlyHint: true },
-    },
-    {
-      name: "play_go_move",
-      description: toolDescription(
-        "Play a legal AI move using exactly one standard Go coordinate such as D4 or Q16; columns omit I. Do not send x/y fields.",
-        '{ ok: true, revision: integer, latestHumanMessageId: integer, phase: "playing" | "finished" }',
-      ),
-      inputSchema: toolSchema(
-        {
-          coordinate: {
-            type: "string",
-            pattern: "^[A-HJ-T](1[0-9]|[1-9])$",
-            description:
-              "Required standard Go coordinate. Use a letter A-H or J-T plus row 1-19; x/y fields are not accepted.",
-          },
-          ...revisionSchema(),
-        },
-        ["coordinate", "expectedRevision"],
-      ),
-      execute: (input) => {
-        const point = parseCoordinate(input);
-        const revision = parseRevision(input);
-        if (!point) return { ok: false, error: "invalid_coordinate" };
-        return revision === null
-          ? { ok: false, error: "invalid_revision" }
-          : callbacks.playMove(point, revision);
-      },
-    },
-    {
-      name: "pass_go_turn",
-      description: toolDescription(
-        "Pass the AI turn using the latest revision. Two consecutive passes finish and score the game.",
-        '{ ok: true, revision: integer, latestHumanMessageId: integer, phase: "playing" | "finished" }',
-      ),
-      inputSchema: toolSchema(revisionSchema(), ["expectedRevision"]),
-      execute: (input) => {
-        const revision = parseRevision(input);
-        return revision === null
-          ? { ok: false, error: "invalid_revision" }
-          : callbacks.passTurn(revision);
-      },
-    },
-    {
-      name: "resign_go_game",
-      description: toolDescription(
-        "Resign the current game using the latest revision.",
-        '{ ok: true, revision: integer, latestHumanMessageId: integer, phase: "finished" }',
-      ),
-      inputSchema: toolSchema(revisionSchema(), ["expectedRevision"]),
-      execute: (input) => {
-        const revision = parseRevision(input);
-        return revision === null
-          ? { ok: false, error: "invalid_revision" }
-          : callbacks.resignGame(revision);
-      },
-    },
-    {
-      name: "respond_go_scoring",
-      description: toolDescription(
-        "Accept or reject the human scoring request using its latest revision. Acceptance ends the game with Chinese-style area scoring and White +7.5 komi.",
-        '{ ok: true, revision: integer, latestHumanMessageId: integer, phase: "playing" | "finished" }',
-      ),
-      inputSchema: toolSchema(
-        {
-          decision: { type: "string", enum: ["accept", "reject"] },
-          ...revisionSchema(),
-        },
-        ["decision", "expectedRevision"],
-      ),
-      execute: (input) => {
-        const values = asRecord(input);
-        const revision = parseRevision(input);
-        const decision = values.decision;
-        if (decision !== "accept" && decision !== "reject") {
-          return { ok: false, error: "invalid_scoring_decision" };
-        }
-        return revision === null
-          ? { ok: false, error: "invalid_revision" }
-          : callbacks.respondScoring(decision, revision);
-      },
-    },
-    {
-      name: "send_go_message",
-      description: toolDescription(
-        "Send one plain-text AI message to the human during the current game. Maximum 240 characters.",
-        "{ ok: true, messageId: integer, latestHumanMessageId: integer }",
-      ),
-      inputSchema: toolSchema(
-        {
-          message: { type: "string", minLength: 1, maxLength: 240 },
-        },
-        ["message"],
-      ),
-      execute: (input) => {
-        const message = asRecord(input).message;
-        return typeof message === "string"
-          ? callbacks.sendMessage(message)
-          : { ok: false, error: "message_required" };
-      },
-    },
+    createJoinMatchTool(callbacks),
+    createGetGameStateTool(callbacks),
+    createWaitForTurnTool(callbacks),
+    createPlayMoveTool(callbacks),
+    createPassTurnTool(callbacks),
+    createResignGameTool(callbacks),
+    createRespondScoringTool(callbacks),
+    createSendMessageTool(callbacks),
   ];
 }
 
 function installCompatibilityBridge(tools: WebMCPTool[]): () => void {
-  if (typeof window === "undefined") return () => undefined;
+  const browserWindow = runtimeGlobals.window;
+  if (!browserWindow) return () => undefined;
   const byName = new Map(tools.map((tool) => [tool.name, tool]));
   const bridge: GoWebMCPBridge = Object.freeze({
     version: 1,
@@ -370,7 +401,7 @@ function installCompatibilityBridge(tools: WebMCPTool[]): () => void {
     callTool: async (name, input = {}) => {
       const tool = byName.get(name);
       return tool
-        ? tool.execute(input)
+        ? await tool.execute(input)
         : {
             ok: false,
             error: "unknown_tool",
@@ -378,14 +409,16 @@ function installCompatibilityBridge(tools: WebMCPTool[]): () => void {
           };
     },
   });
-  Object.defineProperty(window, GO_WEBMCP_BRIDGE_NAME, {
+  Object.defineProperty(browserWindow, GO_WEBMCP_BRIDGE_NAME, {
     configurable: true,
     enumerable: false,
     value: bridge,
   });
 
   return () => {
-    if (window.goWebMCP === bridge) delete window.goWebMCP;
+    if (browserWindow.goWebMCP === bridge) {
+      Reflect.deleteProperty(browserWindow, GO_WEBMCP_BRIDGE_NAME);
+    }
   };
 }
 
@@ -399,7 +432,7 @@ export function registerWebMCPTools(
   const modelContext = getModelContext();
   const registerTool = modelContext?.registerTool?.bind(modelContext);
   if (!registerTool) {
-    onStatus(typeof window === "undefined" ? "unsupported" : "bridge");
+    onStatus(runtimeGlobals.window ? "bridge" : "unsupported");
     return cleanupBridge;
   }
 
@@ -412,7 +445,7 @@ export function registerWebMCPTools(
       if (!controller.signal.aborted) onStatus("available");
     } catch {
       controller.abort();
-      onStatus(typeof window === "undefined" ? "unsupported" : "bridge");
+      onStatus(runtimeGlobals.window ? "bridge" : "unsupported");
     }
   })();
 

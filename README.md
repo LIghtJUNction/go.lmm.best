@@ -9,7 +9,11 @@ A human plays Go through the board. An AI joins and plays through WebMCP tools e
 
 **Source:** [https://github.com/LIghtJUNction/go.lmm.best](https://github.com/LIghtJUNction/go.lmm.best)
 
-![Human vs. AI Go room](public/og-cover.png)
+## Watch the project film
+
+[![Human vs AI on One Go Board — Powered by WebMCP](https://img.youtube.com/vi/vs_s6ADspIU/maxresdefault.jpg)](https://youtu.be/vs_s6ADspIU)
+
+[▶ Watch **Human vs AI on One Go Board — Powered by WebMCP** on YouTube](https://youtu.be/vs_s6ADspIU)
 
 ## Why WebMCP fits
 
@@ -55,9 +59,11 @@ The basic release stores its queue and game in the current page. Keep that page 
 
 Every state-changing game action passes through the same rules used by the visible board. Occupied points, suicide, repeated positions, wrong turns, invalid coordinates, and stale revisions return structured errors. `wait_for_go_turn` is read-only: it returns the latest full state when a new human message arrives, the AI can act, a scoring response is needed, the game ends, or a bounded wait expires. Chat uses a separate `latestHumanMessageId` cursor, so messages do not invalidate move revisions.
 
+Every tool also declares a machine-readable JSON `outputSchema` with explicit success and failure variants. `get_go_game_state` is phase-discriminated: idle, queue, and setup results expose only their valid fields, while playing and finished results formally define the board encoding, colors, captures, complete move log, scoring state, bounded messages, end reason, action required, and revision. `wait_for_go_turn` reuses those state variants and adds its wait status, reason, and acknowledged cursors.
+
 ## WebMCP implementation
 
-The production implementation lives in [`src/lib/webmcp.ts`](src/lib/webmcp.ts). It feature-detects the current API, registers all eight tools, and falls back to the early `navigator.modelContext` location when needed. A controlled `window.goWebMCP` bridge exposes only `listTools()` and `callTool()` for browser hosts that provide CDP but do not forward native page tools.
+The production registration lives in [`src/lib/webmcp.ts`](src/lib/webmcp.ts), with formal result contracts in [`src/lib/webmcp-output-schemas.ts`](src/lib/webmcp-output-schemas.ts). It feature-detects the current API, registers all eight tools, and falls back to the early `navigator.modelContext` location when needed. A controlled `window.goWebMCP` bridge exposes only `listTools()` and `callTool()` for browser hosts that provide CDP but do not forward native page tools.
 
 The core registration shape required by the WebMCP Challenge is:
 
@@ -74,11 +80,12 @@ document.modelContext.registerTool({
     required: ["modelId"],
     additionalProperties: false,
   },
+  outputSchema: WEBMCP_OUTPUT_SCHEMAS.join_go_match,
   execute: async (input) => joinMatch(input),
 });
 ```
 
-The source builds equivalent tool objects in `createTools()` and registers them with an `AbortSignal`, so React cleanup cannot leave duplicate tools behind.
+The source builds equivalent input and output contracts in `createTools()` and registers them with an `AbortSignal`, so React cleanup cannot leave duplicate tools behind. Tests compile every `outputSchema` through Zod's JSON Schema converter and validate representative full-state, wait, action-success, and structured-error results.
 
 ## Run locally
 
@@ -144,7 +151,7 @@ The source now includes the Bun/SQLite relay required by live share links and re
 
 ## Challenge submission assets
 
-The submission description and a sub-three-minute demo plan live in [`docs/challenge-submission.md`](docs/challenge-submission.md). The public YouTube upload requires the maintainer's account; the document supplies the exact shots and narration.
+The submission description lives in [`docs/challenge-submission.md`](docs/challenge-submission.md). The finished sub-three-minute project film is published on [YouTube](https://youtu.be/vs_s6ADspIU).
 
 ## License
 

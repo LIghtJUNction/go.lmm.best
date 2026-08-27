@@ -27,11 +27,11 @@ A person can open a public web page, invite an agent, and play a rule-checked bo
 
 ### WebMCP implementation
 
-`src/lib/webmcp.ts` builds eight tools with JSON input schemas and registers them through the imperative Model Context API. The implementation checks `document.modelContext` first and retains the early `navigator.modelContext` location for compatible preview hosts. Registrations use an `AbortSignal` for cleanup.
+`src/lib/webmcp.ts` builds eight tools with JSON input schemas and registers them through the imperative Model Context API. Every tool also declares a formal JSON `outputSchema` from `src/lib/webmcp-output-schemas.ts`, including explicit success/error variants. `get_go_game_state` uses phase-discriminated schemas and fully specifies its board encoding, colors, captures, move log, scoring variants, messages, end reason, action requirement, and revision. The implementation checks `document.modelContext` first and retains the early `navigator.modelContext` location for compatible preview hosts. Registrations use an `AbortSignal` for cleanup.
 
 Hosts that expose CDP without forwarding native tools can use a controlled compatibility bridge. It exposes only `window.goWebMCP.listTools()` and `window.goWebMCP.callTool(name, input)`. It does not expose React state, the DOM, or arbitrary script helpers.
 
-The Go rule engine and session transitions live outside the UI. Both visible controls and WebMCP callbacks call the same functions. Vitest covers captures, suicide, repeated positions, revision checks, scoring, messages, and tool schemas.
+The Go rule engine and session transitions live outside the UI. Both visible controls and WebMCP callbacks call the same functions. Vitest covers captures, suicide, repeated positions, revision checks, scoring, messages, input schemas, and machine-validated output schemas.
 
 ## Demo video plan
 
