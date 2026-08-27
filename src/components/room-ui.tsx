@@ -484,7 +484,7 @@ export function Header({
   );
 }
 
-export function PopulationOverview({
+function PopulationOverview({
   t,
   stats,
   compact = false,

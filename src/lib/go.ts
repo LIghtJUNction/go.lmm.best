@@ -1,7 +1,7 @@
-export const WHITE_KOMI = 7.5;
+const WHITE_KOMI = 7.5;
 
 export type Stone = "black" | "white";
-export type Cell = Stone | null;
+type Cell = Stone | null;
 export type Board = Cell[][];
 
 export type Point = {
@@ -9,7 +9,7 @@ export type Point = {
   y: number;
 };
 
-export const GO_COLUMNS = "ABCDEFGHJKLMNOPQRST";
+const GO_COLUMNS = "ABCDEFGHJKLMNOPQRST";
 
 export function formatGoCoordinate(point: Point, boardSize: number): string {
   const column = GO_COLUMNS[point.x];
@@ -73,7 +73,7 @@ export type MoveResult =
       error: MoveError;
     };
 
-export type AreaScoreSide = {
+type AreaScoreSide = {
   stones: number;
   territory: number;
   total: number;
@@ -264,8 +264,4 @@ export function calculateAreaScore(board: Board, komi = WHITE_KOMI): AreaScore {
     winner: difference === 0 ? "tie" : difference > 0 ? "black" : "white",
     margin: Math.abs(difference),
   };
-}
-
-export function boardToRows(board: Board): string[][] {
-  return board.map((row) => row.map((cell) => cell ?? "empty"));
 }

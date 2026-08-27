@@ -21,7 +21,7 @@ export type RoomView = "idle" | "searching" | "setup" | "playing" | "finished";
 export type MatchMode = "real" | "demo";
 export type Theme = "light" | "dark";
 export type QueueSide = "human" | "ai" | null;
-export type EndReason =
+type EndReason =
   | "human-resigned"
   | "ai-resigned"
   | "double-pass"
@@ -53,7 +53,7 @@ export type GameMessage = {
   createdAt: number;
 };
 
-export type ScoringState =
+type ScoringState =
   | { status: "idle" }
   | {
       status: "pending";

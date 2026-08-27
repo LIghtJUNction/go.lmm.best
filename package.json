@@ -14,7 +14,8 @@
     "test": "npm run test:web && npm run test:server",
     "test:web": "vitest run src",
     "test:server": "bun test server",
-    "check": "npm run test && npm run build",
+    "lint": "knip --no-progress",
+    "check": "npm run test && npm run lint && npm run build",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -41,8 +42,18 @@
     "@types/react": "^19.1.10",
     "@types/react-dom": "^19.1.7",
     "@vitejs/plugin-react": "^5.0.2",
+    "knip": "6.32.3",
     "typescript": "^5.9.2",
     "vite": "^7.1.3",
     "vitest": "^4.1.11"
+  },
+  "knip": {
+    "entry": ["server/index.ts", "public/theme-init-v1.js"],
+    "ignore": [
+      "src/components/ui/**",
+      "src/components/passkey-auth.tsx",
+      "src/lib/auth-client.ts",
+      "src/lib/realtime.ts"
+    ]
   }
 }
