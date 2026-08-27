@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "bun:test";
 
-import { createShareApp } from "./app";
+import { createShareApp, pingShareStreams } from "./app";
 import { ShareRelay, type ShareSubscriber } from "./share-relay";
 import { SqliteShareStore } from "./share-store";
 import { createGame } from "../src/lib/session";
@@ -206,6 +206,14 @@ describe("ShareRelay", () => {
     });
   });
 
+  it("makes store shutdown idempotent and rejects use after close", () => {
+    const store = new SqliteShareStore(":memory:");
+
+    store.close();
+    expect(() => store.close()).not.toThrow();
+    expect(() => store.get("missing")).toThrow("Share store is closed");
+  });
+
   it("restores the last snapshot after a relay restart", () => {
     const directory = mkdtempSync(join(tmpdir(), "go-share-store-"));
     const path = join(directory, "shares.sqlite3");
@@ -307,6 +315,74 @@ describe("share HTTP API", () => {
     ).toHaveProperty("status", 410);
   });
 
+  it("disconnects slow SSE readers before their queue grows without bound", async () => {
+    const { relay } = createHarness({ maxSpectatorsPerShare: 1 });
+    const app = createShareApp(relay, {
+      allowedOrigins: new Set(["https://go.lmm.best"]),
+      requestIp: () => "203.0.113.20",
+      maxSseBufferedBytes: 4 * 1024,
+    });
+    const createResponse = await app(
+      new Request("https://go.lmm.best/api/v1/shares", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Origin: "https://go.lmm.best",
+        },
+        body: JSON.stringify({ snapshot: snapshot() }),
+      }),
+    );
+    const created = (await createResponse.json()) as { shareId: string };
+    const eventsUrl = `https://go.lmm.best/api/v1/shares/${created.shareId}/events`;
+    const streamResponse = await app(new Request(eventsUrl));
+    const reader = streamResponse.body?.getReader();
+    await reader?.read();
+    await reader?.read();
+    expect(relay.totalViewerCount()).toBe(1);
+
+    for (let index = 0; index < 1_000; index += 1) pingShareStreams(relay);
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+
+    expect(relay.totalViewerCount()).toBe(0);
+    const replacement = await app(new Request(eventsUrl));
+    expect(replacement.status).toBe(200);
+    expect(relay.totalViewerCount()).toBe(1);
+    await replacement.body?.cancel();
+    await new Promise<void>((resolve) => queueMicrotask(resolve));
+    expect(relay.totalViewerCount()).toBe(0);
+  });
+
+  it("does not retain a spectator for an already-aborted SSE request", async () => {
+    const { relay } = createHarness();
+    const app = createShareApp(relay, {
+      allowedOrigins: new Set(["https://go.lmm.best"]),
+      requestIp: () => "203.0.113.21",
+    });
+    const createResponse = await app(
+      new Request("https://go.lmm.best/api/v1/shares", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Origin: "https://go.lmm.best",
+        },
+        body: JSON.stringify({ snapshot: snapshot() }),
+      }),
+    );
+    const created = (await createResponse.json()) as { shareId: string };
+    const controller = new AbortController();
+    controller.abort();
+
+    const response = await app(
+      new Request(
+        `https://go.lmm.best/api/v1/shares/${created.shareId}/events`,
+        { signal: controller.signal },
+      ),
+    );
+
+    expect(response.status).toBe(499);
+    expect(relay.totalViewerCount()).toBe(0);
+  });
+
   it("rejects cross-origin mutations before parsing the body", async () => {
     const { relay } = createHarness();
     const app = createShareApp(relay, {
@@ -331,10 +407,11 @@ describe("share HTTP API", () => {
   });
 
   it("rate limits share creation with an accurate retry window", async () => {
-    const { relay } = createHarness();
+    const { relay, advance, now } = createHarness();
     const app = createShareApp(relay, {
       allowedOrigins: new Set(["https://go.lmm.best"]),
       requestIp: () => "203.0.113.10",
+      now,
     });
     const createRequest = () =>
       new Request("https://go.lmm.best/api/v1/shares", {
@@ -349,13 +426,143 @@ describe("share HTTP API", () => {
     for (let index = 0; index < 10; index += 1) {
       expect((await app(createRequest())).status).toBe(201);
     }
+    advance(30 * 60 * 1000);
     const response = await app(createRequest());
     expect(response.status).toBe(429);
-    expect(response.headers.get("Retry-After")).toBe("3600");
+    expect(response.headers.get("Retry-After")).toBe("1800");
     expect(await response.json()).toMatchObject({
       ok: false,
       error: "rate_limited",
     });
+  });
+
+  it("matches the JSON media type exactly and accepts parameters case-insensitively", async () => {
+    const { relay } = createHarness();
+    const app = createShareApp(relay, {
+      allowedOrigins: new Set(["https://go.lmm.best"]),
+      requestIp: () => "203.0.113.11",
+    });
+    const request = (contentType: string) =>
+      new Request("https://go.lmm.best/api/v1/shares", {
+        method: "POST",
+        headers: {
+          "Content-Type": contentType,
+          Origin: "https://go.lmm.best",
+        },
+        body: JSON.stringify({ snapshot: snapshot() }),
+      });
+
+    const rejected = await app(request("application/jsonp"));
+    expect(rejected.status).toBe(415);
+    expect(await rejected.json()).toMatchObject({
+      ok: false,
+      error: "invalid_content_type",
+    });
+    expect((await app(request("Application/JSON; Charset=UTF-8"))).status).toBe(
+      201,
+    );
+  });
+
+  it("accepts the case-insensitive Bearer authentication scheme", async () => {
+    const { relay } = createHarness();
+    const app = createShareApp(relay, {
+      allowedOrigins: new Set(["https://go.lmm.best"]),
+      requestIp: () => "203.0.113.12",
+    });
+    const createdResponse = await app(
+      new Request("https://go.lmm.best/api/v1/shares", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Origin: "https://go.lmm.best",
+        },
+        body: JSON.stringify({ snapshot: snapshot() }),
+      }),
+    );
+    const created = (await createdResponse.json()) as {
+      shareId: string;
+      hostToken: string;
+    };
+
+    const response = await app(
+      new Request(`https://go.lmm.best/api/v1/shares/${created.shareId}`, {
+        method: "DELETE",
+        headers: {
+          Origin: "https://go.lmm.best",
+          Authorization: `bEaReR ${created.hostToken}`,
+        },
+      }),
+    );
+
+    expect(response.status).toBe(200);
+  });
+
+  it("keeps public reads from consuming the host mutation budget", async () => {
+    const { relay } = createHarness();
+    const app = createShareApp(relay, {
+      allowedOrigins: new Set(["https://go.lmm.best"]),
+      requestIp: () => "203.0.113.13",
+    });
+    const createdResponse = await app(
+      new Request("https://go.lmm.best/api/v1/shares", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Origin: "https://go.lmm.best",
+        },
+        body: JSON.stringify({ snapshot: snapshot() }),
+      }),
+    );
+    const created = (await createdResponse.json()) as {
+      shareId: string;
+      hostToken: string;
+    };
+    const shareUrl = `https://go.lmm.best/api/v1/shares/${created.shareId}`;
+    for (let index = 0; index < 120; index += 1) {
+      expect((await app(new Request(shareUrl))).status).toBe(200);
+    }
+    expect((await app(new Request(shareUrl))).status).toBe(429);
+
+    const update = await app(
+      new Request(shareUrl, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Origin: "https://go.lmm.best",
+          Authorization: `Bearer ${created.hostToken}`,
+        },
+        body: JSON.stringify({ version: 2, snapshot: snapshot() }),
+      }),
+    );
+    expect(update.status).toBe(200);
+  });
+
+  it("does not charge unsupported methods against a valid operation", async () => {
+    const { relay } = createHarness();
+    const app = createShareApp(relay, {
+      allowedOrigins: new Set(["https://go.lmm.best"]),
+      requestIp: () => "203.0.113.14",
+    });
+    const collectionUrl = "https://go.lmm.best/api/v1/shares";
+    for (let index = 0; index < 20; index += 1) {
+      expect((await app(new Request(collectionUrl))).status).toBe(405);
+    }
+    for (let index = 0; index < 10; index += 1) {
+      expect(
+        (
+          await app(
+            new Request(collectionUrl, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Origin: "https://go.lmm.best",
+              },
+              body: JSON.stringify({ snapshot: snapshot() }),
+            }),
+          )
+        ).status,
+      ).toBe(201);
+    }
   });
 
   it("stops reading a streamed body once it crosses 256 KiB", async () => {

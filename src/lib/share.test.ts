@@ -44,6 +44,23 @@ describe("share snapshots", () => {
     expect(game.nextMessageId).toBe(1);
   });
 
+  it("keeps long, legal-size 19x19 histories shareable", () => {
+    const game = createGame("provider/model", 19);
+    game.moves = Array.from({ length: 364 }, (_, index) => ({
+      number: index + 1,
+      point: { x: index % 19, y: Math.floor(index / 19) % 19 },
+      stone: index % 2 === 0 ? ("black" as const) : ("white" as const),
+      captured: 0,
+      actor: index % 2 === 0 ? ("human" as const) : ("ai" as const),
+    }));
+    game.revision = game.moves.length;
+
+    const snapshot = createShareSnapshot(game, "playing", "real");
+
+    expect(snapshot?.game.moves).toHaveLength(364);
+    expect(parseShareSnapshot(snapshot)).toEqual(snapshot);
+  });
+
   it("rejects malformed boards, move coordinates, and view/end mismatches", () => {
     const snapshot = createShareSnapshot(
       createGame("provider/model"),

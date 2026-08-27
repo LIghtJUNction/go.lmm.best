@@ -27,9 +27,9 @@ A person can open a public web page, invite an agent, and play a rule-checked bo
 
 ### WebMCP implementation
 
-`src/lib/webmcp.ts` builds eight tools with JSON input schemas and registers them through the imperative Model Context API. Every tool also declares a formal JSON `outputSchema` from `src/lib/webmcp-output-schemas.ts`, including explicit success/error variants. `get_go_game_state` uses phase-discriminated schemas and fully specifies its board encoding, colors, captures, move log, scoring variants, messages, end reason, action requirement, and revision. The implementation checks `document.modelContext` first and retains the early `navigator.modelContext` location for compatible preview hosts. Registrations use an `AbortSignal` for cleanup.
+`src/lib/webmcp.ts` builds eight tools with JSON input schemas and registers them through the imperative Model Context API. The current WebMCP draft does not standardize an `outputSchema` descriptor member, so each native tool description includes its concise success/failure contract. The application separately maintains machine-validated JSON result schemas in `src/lib/webmcp-output-schemas.ts`; `get_go_game_state` uses phase-discriminated variants and fully specifies its board encoding, colors, captures, move log, scoring, messages, end reason, action requirement, and revision. The implementation checks `document.modelContext` first, retains the early `navigator.modelContext` location for compatible preview hosts, and uses an `AbortSignal` for cleanup.
 
-Hosts that expose CDP without forwarding native tools can use a controlled compatibility bridge. It exposes only `window.goWebMCP.listTools()` and `window.goWebMCP.callTool(name, input)`. It does not expose React state, the DOM, or arbitrary script helpers.
+Hosts that expose CDP without forwarding native tools can use a controlled compatibility bridge. It exposes `window.goWebMCP.listTools()`, descriptor-only `describeTools()`, and `callTool(name, input)`. It does not expose React state, the DOM, or arbitrary script helpers.
 
 The Go rule engine and session transitions live outside the UI. Both visible controls and WebMCP callbacks call the same functions. Vitest covers captures, suicide, repeated positions, revision checks, scoring, messages, input schemas, and machine-validated output schemas.
 
@@ -37,18 +37,18 @@ The Go rule engine and session transitions live outside the UI. Both visible con
 
 Target length: **2 minutes 35 seconds**. Record at 1440×900 with browser audio narration. Keep the URL and tool calls readable. Do not speed up the tool results.
 
-| Time | Picture | Narration |
-| --- | --- | --- |
-| 0:00–0:12 | Open `go.lmm.best`; show the lobby and live URL. | “This is go.lmm.best, a Go room where a person uses the board and an AI uses WebMCP.” |
-| 0:12–0:30 | Open the WebMCP tool list. Point to all eight tools. | “The page exposes typed tools for matchmaking, state, waiting, moves, passing, resigning, scoring, and messages.” |
-| 0:30–0:48 | Call `join_go_match` before clicking the human action. Show the AI waiting state. | “The agent can arrive first. It identifies its real model and waits in the AI side of the queue.” |
-| 0:48–1:02 | Click “Join this AI”; choose 13×13 and start. | “The human joins from the page and chooses the board only after the match forms.” |
-| 1:02–1:25 | Start `wait_for_go_turn`, place a human stone, then use the returned compact board and revision with `play_go_move`. | “The agent waits without polling while the person thinks, then receives an exact coordinate board and submits one move.” |
-| 1:25–1:40 | Replay the old revision and show the structured stale-revision error. | “Replaying a stale action fails. The page, not the model, owns turn and revision safety.” |
-| 1:40–1:57 | While the agent waits, send one human message; show `waitReason: human_message`, reply with `send_go_message`, then briefly enable board comments. | “Conversation wakes the agent without polling or changing the move revision. Board comments remain optional.” |
-| 1:57–2:18 | Human requests scoring; call `respond_go_scoring` with `accept`; show the score. | “The human asks to score. The AI accepts with the current revision, and the same rules produce the final area score with komi.” |
-| 2:18–2:30 | Switch dark mode, narrow to mobile width, pan a 19×19 board. | “The room is bilingual, theme-aware, reduced-motion friendly, and usable on a phone.” |
-| 2:30–2:35 | Show the GitHub repository, MIT badge, and `webmcp.ts`. | “The live app and all source are public under MIT.” |
+| Time      | Picture                                                                                                                                            | Narration                                                                                                                       |
+| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| 0:00–0:12 | Open `go.lmm.best`; show the lobby and live URL.                                                                                                   | “This is go.lmm.best, a Go room where a person uses the board and an AI uses WebMCP.”                                           |
+| 0:12–0:30 | Open the WebMCP tool list. Point to all eight tools.                                                                                               | “The page exposes typed tools for matchmaking, state, waiting, moves, passing, resigning, scoring, and messages.”               |
+| 0:30–0:48 | Call `join_go_match` before clicking the human action. Show the AI waiting state.                                                                  | “The agent can arrive first. It identifies its real model and waits in the AI side of the queue.”                               |
+| 0:48–1:02 | Click “Join this AI”; choose 13×13 and start.                                                                                                      | “The human joins from the page and chooses the board only after the match forms.”                                               |
+| 1:02–1:25 | Start `wait_for_go_turn`, place a human stone, then use the returned compact board and revision with `play_go_move`.                               | “The agent waits without polling while the person thinks, then receives an exact coordinate board and submits one move.”        |
+| 1:25–1:40 | Replay the old revision and show the structured stale-revision error.                                                                              | “Replaying a stale action fails. The page, not the model, owns turn and revision safety.”                                       |
+| 1:40–1:57 | While the agent waits, send one human message; show `waitReason: human_message`, reply with `send_go_message`, then briefly enable board comments. | “Conversation wakes the agent without polling or changing the move revision. Board comments remain optional.”                   |
+| 1:57–2:18 | Human requests scoring; call `respond_go_scoring` with `accept`; show the score.                                                                   | “The human asks to score. The AI accepts with the current revision, and the same rules produce the final area score with komi.” |
+| 2:18–2:30 | Switch dark mode, narrow to mobile width, pan a 19×19 board.                                                                                       | “The room is bilingual, theme-aware, reduced-motion friendly, and usable on a phone.”                                           |
+| 2:30–2:35 | Show the GitHub repository, MIT badge, and `webmcp.ts`.                                                                                            | “The live app and all source are public under MIT.”                                                                             |
 
 ## Recording checklist
 

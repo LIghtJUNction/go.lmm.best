@@ -65,10 +65,27 @@ export function useSharedGame(shareId: string) {
   useEffect(() => {
     let active = true;
     let eventSource: EventSource | null = null;
+    let fallbackController: AbortController | null = null;
+    let eventSequence = 0;
     const controller = new AbortController();
 
+    const cancelFallback = () => {
+      fallbackController?.abort();
+      fallbackController = null;
+    };
+    const applySnapshot = (
+      share: PublicShareState,
+      status = statusForShare(share),
+    ) => {
+      setState((current) =>
+        current.share && share.version < current.share.version
+          ? current
+          : { status, share },
+      );
+    };
     const fail = (status: SharedGameStatus) => {
       if (!active) return;
+      cancelFallback();
       eventSource?.close();
       setState((current) => ({ ...current, status }));
     };
@@ -76,7 +93,7 @@ export function useSharedGame(shareId: string) {
     void fetchSharedGame(shareId, controller.signal)
       .then((initialShare) => {
         if (!active) return;
-        setState({ status: statusForShare(initialShare), share: initialShare });
+        applySnapshot(initialShare);
         eventSource = new EventSource(
           `/api/v1/shares/${encodeURIComponent(shareId)}/events`,
         );
@@ -89,7 +106,9 @@ export function useSharedGame(shareId: string) {
             fail("error");
             return;
           }
-          setState({ status: statusForShare(snapshot), share: snapshot });
+          eventSequence += 1;
+          cancelFallback();
+          applySnapshot(snapshot);
         });
         eventSource.addEventListener("presence", (event) => {
           const presence = decodeEvent(
@@ -103,6 +122,8 @@ export function useSharedGame(shareId: string) {
             fail("error");
             return;
           }
+          eventSequence += 1;
+          cancelFallback();
           setState((current) => {
             if (!current.share) return current;
             const share = {
@@ -119,18 +140,30 @@ export function useSharedGame(shareId: string) {
         eventSource.onerror = () => {
           if (!active) return;
           setState((current) => ({ ...current, status: "reconnecting" }));
-          void fetchSharedGame(shareId)
+          cancelFallback();
+          const fallback = new AbortController();
+          fallbackController = fallback;
+          const startedAtSequence = eventSequence;
+          void fetchSharedGame(shareId, fallback.signal)
             .then((share) => {
-              if (!active) return;
-              setState({
-                status:
-                  share.hostStatus === "live"
-                    ? "reconnecting"
-                    : statusForShare(share),
+              if (
+                !active ||
+                fallback.signal.aborted ||
+                eventSequence !== startedAtSequence
+              ) {
+                return;
+              }
+              fallbackController = null;
+              applySnapshot(
                 share,
-              });
+                share.hostStatus === "live"
+                  ? "reconnecting"
+                  : statusForShare(share),
+              );
             })
             .catch((error: unknown) => {
+              if (fallback.signal.aborted) return;
+              fallbackController = null;
               const status = terminalStatus(error);
               if (isTerminalStatus(status)) fail(status);
             });
@@ -144,6 +177,7 @@ export function useSharedGame(shareId: string) {
     return () => {
       active = false;
       controller.abort();
+      cancelFallback();
       eventSource?.close();
     };
   }, [retryKey, shareId]);

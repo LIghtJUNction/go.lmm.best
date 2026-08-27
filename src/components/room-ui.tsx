@@ -1,6 +1,7 @@
 import {
   memo,
   type CSSProperties,
+  type KeyboardEvent,
   type ReactNode,
   useEffect,
   useRef,
@@ -78,7 +79,12 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Table, TableBody, TableCell, TableRow } from "@/components/ui/table";
 import { writeToClipboard } from "@/lib/clipboard";
-import { createBoard, type Board as GoBoardData, type Point } from "@/lib/go";
+import {
+  createBoard,
+  formatGoCoordinate,
+  type Board as GoBoardData,
+  type Point,
+} from "@/lib/go";
 import type { Copy, Language } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import type { WebMCPStatus } from "@/lib/webmcp";
@@ -111,9 +117,32 @@ function formatElapsed(seconds: number): string {
   return `${minutes}:${remaining}`;
 }
 
-function formatLastMove(point?: Point): string {
-  if (!point) return "—";
-  return `${String.fromCharCode(65 + point.x)}${point.y + 1}`;
+function formatLastMove(point: Point | undefined, boardSize: number): string {
+  return point ? formatGoCoordinate(point, boardSize) : "—";
+}
+
+function nextBoardFocusPoint(
+  key: string,
+  ctrlKey: boolean,
+  point: Point,
+  size: number,
+): Point | null {
+  switch (key) {
+    case "ArrowLeft":
+      return { ...point, x: Math.max(0, point.x - 1) };
+    case "ArrowRight":
+      return { ...point, x: Math.min(size - 1, point.x + 1) };
+    case "ArrowUp":
+      return { ...point, y: Math.max(0, point.y - 1) };
+    case "ArrowDown":
+      return { ...point, y: Math.min(size - 1, point.y + 1) };
+    case "Home":
+      return ctrlKey ? { x: 0, y: 0 } : { ...point, x: 0 };
+    case "End":
+      return ctrlKey ? { x: size - 1, y: size - 1 } : { ...point, x: size - 1 };
+    default:
+      return null;
+  }
 }
 
 function PageTransition({
@@ -1118,7 +1147,12 @@ export function GameRoom({
           <ScoreSummary t={t} game={game} />
         </div>
         <div className="order-5 border-t pt-6 xl:order-4">
-          <MoveLog t={t} language={language} moves={game.moves} />
+          <MoveLog
+            t={t}
+            language={language}
+            moves={game.moves}
+            boardSize={game.boardSize}
+          />
         </div>
         {!spectating && (
           <div className="order-6 border-t pt-6 xl:order-5">
@@ -1233,7 +1267,9 @@ function PlayerStack({
         </div>
         <div>
           <span className="block text-muted-foreground">{t.lastMove}</span>
-          <strong>{formatLastMove(game.moves.at(-1)?.point)}</strong>
+          <strong>
+            {formatLastMove(game.moves.at(-1)?.point, game.boardSize)}
+          </strong>
         </div>
       </div>
     </section>
@@ -1306,10 +1342,12 @@ function MoveLog({
   t,
   language,
   moves,
+  boardSize,
 }: {
   t: Copy;
   language: Language;
   moves: Move[];
+  boardSize: number;
 }) {
   return (
     <section className="flex flex-col gap-5">
@@ -1353,7 +1391,7 @@ function MoveLog({
                     ? language === "zh"
                       ? "停一手"
                       : "Pass"
-                    : formatLastMove(move.point)}
+                    : formatLastMove(move.point, boardSize)}
                 </TableCell>
                 <TableCell className="text-right text-muted-foreground">
                   {move.actor === "human" ? t.human : t.ai}
@@ -1443,18 +1481,22 @@ const Board = memo(function Board({
 }) {
   const reducedMotion = useReducedMotion();
   const size = board.length;
+  const boardRef = useRef<HTMLDivElement>(null);
+  const cellRefs = useRef(new Map<string, HTMLButtonElement>());
+  const [activePoint, setActivePoint] = useState<Point>(
+    () => lastMove ?? { x: Math.floor(size / 2), y: Math.floor(size / 2) },
+  );
   const coordinates = "ABCDEFGHJKLMNOPQRST".slice(0, size).split("");
   const starAxis =
     size === 9 ? [2, 4, 6] : size === 13 ? [3, 6, 9] : [3, 9, 15];
   const starPoints = starAxis.flatMap((y) =>
-    starAxis
-      .filter(
-        (x) =>
-          size !== 9 ||
-          (x === starAxis[1] && y === starAxis[1]) ||
-          (x !== starAxis[1] && y !== starAxis[1]),
-      )
-      .map((x) => ({ x, y })),
+    starAxis.flatMap((x) =>
+      size !== 9 ||
+      (x === starAxis[1] && y === starAxis[1]) ||
+      (x !== starAxis[1] && y !== starAxis[1])
+        ? [{ x, y }]
+        : [],
+    ),
   );
   const positionStyle = (index: number) =>
     ({
@@ -1469,6 +1511,36 @@ const Board = memo(function Board({
     "--board-size": size,
     "--intersection-size": `${Math.min(10.4, 92 / (size - 1))}%`,
   } as CSSProperties;
+
+  useEffect(() => {
+    setActivePoint((current) =>
+      current.x < size && current.y < size
+        ? current
+        : { x: Math.floor(size / 2), y: Math.floor(size / 2) },
+    );
+  }, [size]);
+
+  useEffect(() => {
+    if (lastMove && !boardRef.current?.contains(document.activeElement)) {
+      setActivePoint(lastMove);
+    }
+  }, [lastMove]);
+
+  const focusIntersection = (point: Point) => {
+    setActivePoint(point);
+    cellRefs.current.get(`${point.x}-${point.y}`)?.focus();
+  };
+
+  const handleCellKeyDown = (
+    event: KeyboardEvent<HTMLButtonElement>,
+    point: Point,
+  ) => {
+    const next = nextBoardFocusPoint(event.key, event.ctrlKey, point, size);
+    if (!next) return;
+    event.preventDefault();
+    focusIntersection(next);
+  };
+
   return (
     <div className="board-surface" style={surfaceStyle}>
       <div
@@ -1503,7 +1575,14 @@ const Board = memo(function Board({
           <span key={index}>{size - index}</span>
         ))}
       </div>
-      <div className="go-board" role="grid" aria-label={t.ariaBoard}>
+      <div
+        ref={boardRef}
+        className="go-board"
+        role="grid"
+        aria-label={t.ariaBoard(size)}
+        aria-rowcount={size}
+        aria-colcount={size}
+      >
         <div className="board-lines" aria-hidden="true">
           {Array.from({ length: size }, (_, index) => (
             <span
@@ -1525,53 +1604,72 @@ const Board = memo(function Board({
             <span key={`${x}-${y}`} style={pointStyle(x, y)} />
           ))}
         </div>
-        {board.map((row, y) =>
-          row.map((cell, x) => {
-            const occupied =
-              cell === "black"
-                ? t.occupiedBlack
-                : cell === "white"
-                  ? t.occupiedWhite
-                  : t.emptyIntersection;
-            const isLast = lastMove?.x === x && lastMove?.y === y;
-            return (
-              <button
-                key={`${x}-${y}`}
-                type="button"
-                className={cn(
-                  "intersection",
-                  cell && `has-${cell}`,
-                  isLast && "is-last",
-                )}
-                style={pointStyle(x, y)}
-                onClick={() => onMove?.({ x, y })}
-                disabled={!interactive || Boolean(cell)}
-                aria-label={t.ariaIntersection(x, y, occupied)}
-                role="gridcell"
-              >
-                {cell && (
-                  <m.span
-                    className="stone"
-                    aria-hidden="true"
-                    initial={
-                      reducedMotion
-                        ? { opacity: 0 }
-                        : { opacity: 0, scale: 0.9, y: -5 }
-                    }
-                    animate={{ opacity: 1, scale: 1, y: 0 }}
-                    transition={
-                      reducedMotion
-                        ? { duration: 0.1 }
-                        : { type: "spring", bounce: 0.08, duration: 0.2 }
-                    }
-                  >
-                    {isLast && <i />}
-                  </m.span>
-                )}
-              </button>
-            );
-          }),
-        )}
+        {board.map((row, y) => (
+          <div role="row" className="contents" key={`row-${y}`}>
+            {row.map((cell, x) => {
+              const point = { x, y };
+              const unavailable = !interactive || Boolean(cell);
+              const occupied =
+                cell === "black"
+                  ? t.occupiedBlack
+                  : cell === "white"
+                    ? t.occupiedWhite
+                    : t.emptyIntersection;
+              const isLast = lastMove?.x === x && lastMove?.y === y;
+              return (
+                <button
+                  ref={(element) => {
+                    const key = `${x}-${y}`;
+                    if (element) cellRefs.current.set(key, element);
+                    else cellRefs.current.delete(key);
+                  }}
+                  key={`${x}-${y}`}
+                  type="button"
+                  className={cn(
+                    "intersection",
+                    cell && `has-${cell}`,
+                    isLast && "is-last",
+                  )}
+                  style={pointStyle(x, y)}
+                  onClick={() => {
+                    if (!unavailable) onMove?.(point);
+                  }}
+                  onFocus={() => setActivePoint(point)}
+                  onKeyDown={(event) => handleCellKeyDown(event, point)}
+                  tabIndex={activePoint.x === x && activePoint.y === y ? 0 : -1}
+                  aria-disabled={unavailable}
+                  aria-rowindex={y + 1}
+                  aria-colindex={x + 1}
+                  aria-label={t.ariaIntersection(
+                    formatGoCoordinate(point, size),
+                    occupied,
+                  )}
+                  role="gridcell"
+                >
+                  {cell && (
+                    <m.span
+                      className="stone"
+                      aria-hidden="true"
+                      initial={
+                        reducedMotion
+                          ? { opacity: 0 }
+                          : { opacity: 0, scale: 0.9, y: -5 }
+                      }
+                      animate={{ opacity: 1, scale: 1, y: 0 }}
+                      transition={
+                        reducedMotion
+                          ? { duration: 0.1 }
+                          : { type: "spring", bounce: 0.08, duration: 0.2 }
+                      }
+                    >
+                      {isLast && <i />}
+                    </m.span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        ))}
       </div>
     </div>
   );

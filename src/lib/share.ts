@@ -153,7 +153,7 @@ const spectatorGameSchema = z.object({
     black: z.int().nonnegative(),
     white: z.int().nonnegative(),
   }),
-  moves: z.array(moveSchema).max(363),
+  moves: z.array(moveSchema),
   passCount: z.int().min(0).max(2),
   revision: z.int().nonnegative(),
   endReason: z
@@ -364,7 +364,8 @@ export function createShareSnapshot(
       messages: game.messages.map((message) => ({ ...message })),
     },
   };
-  return shareSnapshotSchema.parse(snapshot);
+  const parsed = shareSnapshotSchema.safeParse(snapshot);
+  return parsed.success ? parsed.data : null;
 }
 
 export function spectatorGameToGameState(game: SpectatorGameState): GameState {

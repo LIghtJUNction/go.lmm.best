@@ -35,6 +35,7 @@ function publicState(): PublicShareState {
 }
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
 });
 
@@ -77,12 +78,12 @@ describe("share client", () => {
     );
     vi.stubGlobal("fetch", fetchMock);
 
-    await publishGameShare(
+    await publishGameShare({
       shareId,
-      "host-token-with-at-least-thirty-two-bytes",
-      2,
-      snapshot(),
-    );
+      hostToken: "host-token-with-at-least-thirty-two-bytes",
+      version: 2,
+      snapshot: snapshot(),
+    });
     const [path, init] = fetchMock.mock.calls[0];
     expect(path).toBe(`/api/v1/shares/${shareId}`);
     expect(new Headers(init?.headers).get("authorization")).toBe(
@@ -139,5 +140,60 @@ describe("share client", () => {
     await expect(createGameShare(snapshot())).rejects.toMatchObject({
       code: "network_error",
     });
+  });
+
+  it("aborts stalled response bodies after the same bounded timeout", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn(
+      async (_input: RequestInfo | URL, init?: RequestInit) => {
+        const signal = init?.signal;
+        const body = new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode('{"shareId":'));
+            signal?.addEventListener(
+              "abort",
+              () => controller.error(signal.reason),
+              { once: true },
+            );
+          },
+        });
+        return new Response(body, {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const assertion = expect(fetchSharedGame(shareId)).rejects.toMatchObject({
+      code: "network_error",
+    });
+    await vi.advanceTimersByTimeAsync(10_000);
+
+    await assertion;
+    expect(fetchMock.mock.calls[0]?.[1]?.signal?.aborted).toBe(true);
+  });
+
+  it("aborts stalled requests after a bounded timeout", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn(
+      (_input: RequestInfo | URL, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener(
+            "abort",
+            () => reject(init.signal?.reason),
+            { once: true },
+          );
+        }),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const assertion = expect(fetchSharedGame(shareId)).rejects.toMatchObject({
+      code: "network_error",
+    });
+    await vi.advanceTimersByTimeAsync(10_000);
+
+    await assertion;
+    expect(fetchMock.mock.calls[0]?.[1]?.signal?.aborted).toBe(true);
   });
 });

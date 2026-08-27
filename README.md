@@ -46,24 +46,24 @@ The basic release stores its queue and game in the current page. Keep that page 
 
 ## WebMCP tools
 
-| Tool | Purpose | Main input |
-| --- | --- | --- |
-| `join_go_match` | Join as the AI, including before a human arrives | `modelId`, optional `displayName` |
-| `get_go_game_state` | Read the compact ASCII board, turn, score state, and revision | none |
-| `wait_for_go_turn` | Wait for a human message or until the AI must act | `afterRevision`, optional `afterMessageId`, `timeoutMs` |
-| `play_go_move` | Place one stone | `coordinate`, `expectedRevision` |
-| `pass_go_turn` | Pass | `expectedRevision` |
-| `resign_go_game` | Resign | `expectedRevision` |
-| `respond_go_scoring` | Accept or reject a human scoring request | `decision`, `expectedRevision` |
-| `send_go_message` | Send a bounded in-game message | `message` |
+| Tool                 | Purpose                                                       | Main input                                              |
+| -------------------- | ------------------------------------------------------------- | ------------------------------------------------------- |
+| `join_go_match`      | Join as the AI, including before a human arrives              | `modelId`                                               |
+| `get_go_game_state`  | Read the compact ASCII board, turn, score state, and revision | none                                                    |
+| `wait_for_go_turn`   | Wait for a human message or until the AI must act             | `afterRevision`, optional `afterMessageId`, `timeoutMs` |
+| `play_go_move`       | Place one stone                                               | `coordinate`, `expectedRevision`                        |
+| `pass_go_turn`       | Pass                                                          | `expectedRevision`                                      |
+| `resign_go_game`     | Resign                                                        | `expectedRevision`                                      |
+| `respond_go_scoring` | Accept or reject a human scoring request                      | `decision`, `expectedRevision`                          |
+| `send_go_message`    | Send a bounded in-game message                                | `message`                                               |
 
 Every state-changing game action passes through the same rules used by the visible board. Occupied points, suicide, repeated positions, wrong turns, invalid coordinates, and stale revisions return structured errors. `wait_for_go_turn` is read-only: it returns the latest full state when a new human message arrives, the AI can act, a scoring response is needed, the game ends, or a bounded wait expires. Chat uses a separate `latestHumanMessageId` cursor, so messages do not invalidate move revisions.
 
-Every tool also declares a machine-readable JSON `outputSchema` with explicit success and failure variants. `get_go_game_state` is phase-discriminated: idle, queue, and setup results expose only their valid fields, while playing and finished results formally define the board encoding, colors, captures, complete move log, scoring state, bounded messages, end reason, action required, and revision. `wait_for_go_turn` reuses those state variants and adds its wait status, reason, and acknowledged cursors.
+Every tool has a machine-validated JSON `outputSchema` with explicit success and failure variants. The [current imperative WebMCP draft](https://webmachinelearning.github.io/webmcp/#dom-modelcontext-registertool) standardizes `inputSchema`, but not an output-schema descriptor member, so native hosts receive the same contract as concise success/failure text in each tool description. CDP and compatibility hosts can inspect the full application metadata through `window.goWebMCP.describeTools()`. `get_go_game_state` is phase-discriminated and `wait_for_go_turn` reuses those state variants with its wait status, reason, and echoed request cursors.
 
 ## WebMCP implementation
 
-The production registration lives in [`src/lib/webmcp.ts`](src/lib/webmcp.ts), with formal result contracts in [`src/lib/webmcp-output-schemas.ts`](src/lib/webmcp-output-schemas.ts). It feature-detects the current API, registers all eight tools, and falls back to the early `navigator.modelContext` location when needed. A controlled `window.goWebMCP` bridge exposes only `listTools()` and `callTool()` for browser hosts that provide CDP but do not forward native page tools.
+The production registration lives in [`src/lib/webmcp.ts`](src/lib/webmcp.ts), with application-owned result contracts in [`src/lib/webmcp-output-schemas.ts`](src/lib/webmcp-output-schemas.ts). It feature-detects the current API, registers all eight tools, and falls back to the early `navigator.modelContext` location when needed. A controlled `window.goWebMCP` bridge exposes `listTools()`, descriptor-only `describeTools()`, and `callTool()` for browser hosts that provide CDP but do not forward native page tools.
 
 The core registration shape required by the WebMCP Challenge is:
 
@@ -74,18 +74,16 @@ document.modelContext.registerTool({
   inputSchema: {
     type: "object",
     properties: {
-      modelId: { type: "string" },
-      displayName: { type: "string" },
+      modelId: { type: "string", maxLength: 120 },
     },
     required: ["modelId"],
     additionalProperties: false,
   },
-  outputSchema: WEBMCP_OUTPUT_SCHEMAS.join_go_match,
   execute: async (input) => joinMatch(input),
 });
 ```
 
-The source builds equivalent input and output contracts in `createTools()` and registers them with an `AbortSignal`, so React cleanup cannot leave duplicate tools behind. Tests compile every `outputSchema` through Zod's JSON Schema converter and validate representative full-state, wait, action-success, and structured-error results.
+The source builds the native input contract plus a precise application output contract in `createTools()`. Native registrations use an `AbortSignal`, so React cleanup cannot leave duplicate tools behind; the compatibility bridge retains the full descriptor metadata. Tests compile every application `outputSchema` through Zod's JSON Schema converter and validate representative full-state, wait, action-success, and structured-error results.
 
 ## Run locally
 
@@ -118,7 +116,7 @@ npm run build
 npm run check
 ```
 
-`npm run check` runs Vitest and Bun tests, client and server type checks, the Vite production build, static precompression, and the Bun Linux binary build. The static site is in `dist/`; the verified API binary and checksum are in `dist/server/`.
+`npm run check` runs Vitest and Bun tests, client and server type checks, the Vite production build, static precompression, and the Bun Linux binary build. The static site is isolated in `dist/web/`; the verified API binary and checksum are in `dist/server/`. `npm run package:web-release -- <release-id>` adds release provenance and checksum manifests under `dist/releases/`.
 
 Before a release, test both languages and themes at desktop and 390px mobile widths. Verify the direct WebMCP tool list in ChatGPT's in-app browser or Chrome 149+, then complete one move and one revision failure against the deployed URL.
 

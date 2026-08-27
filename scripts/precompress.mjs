@@ -2,7 +2,7 @@ import { gzipSync } from "node:zlib";
 import { readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { extname, join } from "node:path";
 
-const root = new URL("../dist/", import.meta.url);
+const root = new URL("../dist/web/", import.meta.url);
 const compressible = new Set([
   ".css",
   ".html",

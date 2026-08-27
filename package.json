@@ -8,6 +8,7 @@
     "dev:server": "APP_ORIGIN=http://localhost:5173,http://127.0.0.1:5173 DATABASE_PATH=.data/go.sqlite3 bun --watch server/index.ts",
     "build": "npm run build:web && npm run build:server",
     "build:web": "tsc -b && vite build && node scripts/precompress.mjs",
+    "package:web-release": "npm run build:web && bash scripts/build-static-release.sh",
     "build:server": "npm run typecheck:server && bash scripts/build-server-binary.sh",
     "typecheck:server": "tsc -p tsconfig.server.json",
     "test": "npm run test:web && npm run test:server",

@@ -375,6 +375,7 @@ function idleStateSchema(
 }
 
 function queueStateSchema(
+  queueSide: "human" | "ai",
   extraProperties: SchemaProperties = {},
   extraRequired: string[] = [],
 ): JsonSchema {
@@ -382,15 +383,18 @@ function queueStateSchema(
     phase: { type: "string", const: "queue" },
     actionRequired: {
       type: "string",
-      enum: ["join_go_match", "wait_for_go_turn"],
+      const: queueSide === "human" ? "join_go_match" : "wait_for_go_turn",
     },
     phaseProperties: {
-      queueSide: nullable({ type: "string", enum: ["human", "ai"] }),
+      queueSide: { type: "string", const: queueSide },
       queuePosition: { type: "integer", const: 1 },
-      modelId: nullable({ type: "string", minLength: 1, maxLength: 120 }),
+      modelId:
+        queueSide === "human"
+          ? { type: "null" }
+          : { type: "string", minLength: 1, maxLength: 120 },
     },
     phaseRequired: ["queueSide", "queuePosition", "modelId"],
-    description: "One side is waiting in the page-local FIFO queue.",
+    description: `${queueSide === "human" ? "Human" : "AI"} side waiting in the page-local FIFO queue.`,
     extraProperties,
     extraRequired,
   });
@@ -447,37 +451,100 @@ function activeStateSchema({
   });
 }
 
+type PlayingStateMode = "human_turn" | "ai_turn" | "scoring";
+
+type PlayingStateDefinition = {
+  actionRequired: string;
+  turnActor: JsonSchema;
+  scoring: JsonSchema;
+};
+
+function playingStateDefinition(
+  mode: PlayingStateMode,
+): PlayingStateDefinition {
+  switch (mode) {
+    case "human_turn":
+      return {
+        actionRequired: "wait_for_go_turn",
+        turnActor: { type: "string", const: "human" },
+        scoring: SCORING_IDLE_SCHEMA,
+      };
+    case "ai_turn":
+      return {
+        actionRequired: "play_go_move, pass_go_turn, or resign_go_game",
+        turnActor: { type: "string", const: "ai" },
+        scoring: SCORING_IDLE_SCHEMA,
+      };
+    case "scoring":
+      return {
+        actionRequired: "respond_go_scoring",
+        turnActor: { type: "string", enum: ["human", "ai"] },
+        scoring: SCORING_PENDING_SCHEMA,
+      };
+    default: {
+      const unsupported: never = mode;
+      throw new Error(`Unsupported playing-state mode: ${unsupported}`);
+    }
+  }
+}
+
 function playingStateSchema(
+  mode: PlayingStateMode,
   extraProperties: SchemaProperties = {},
   extraRequired: string[] = [],
 ): JsonSchema {
+  const definition = playingStateDefinition(mode);
   return activeStateSchema({
     phase: "playing",
-    actionRequired: {
-      type: "string",
-      enum: [
-        "respond_go_scoring",
-        "play_go_move, pass_go_turn, or resign_go_game",
-        "wait_for_go_turn",
-      ],
-    },
+    actionRequired: { type: "string", const: definition.actionRequired },
     endReason: { type: "null" },
     description: "Full playable game state.",
-    extraProperties,
+    extraProperties: {
+      turnActor: definition.turnActor,
+      scoring: definition.scoring,
+      ...extraProperties,
+    },
     extraRequired,
   });
 }
 
+type FinishedStateMode = "resignation" | "completed_scoring";
+
+type FinishedStateDefinition = {
+  endReasons: string[];
+  scoring: JsonSchema;
+};
+
+function finishedStateDefinition(
+  mode: FinishedStateMode,
+): FinishedStateDefinition {
+  if (mode === "resignation") {
+    return {
+      endReasons: ["human-resigned", "ai-resigned"],
+      scoring: SCORING_IDLE_SCHEMA,
+    };
+  }
+  return {
+    endReasons: ["double-pass", "scored"],
+    scoring: SCORING_COMPLETE_SCHEMA,
+  };
+}
+
 function finishedStateSchema(
+  mode: FinishedStateMode,
   extraProperties: SchemaProperties = {},
   extraRequired: string[] = [],
 ): JsonSchema {
+  const definition = finishedStateDefinition(mode);
   return activeStateSchema({
     phase: "finished",
     actionRequired: { type: "string", const: "game_finished" },
-    endReason: { type: "string", enum: END_REASONS },
+    endReason: { type: "string", enum: definition.endReasons },
     description: "Full finished game state.",
-    extraProperties,
+    extraProperties: {
+      scoring: definition.scoring,
+      ...extraProperties,
+    },
     extraRequired,
   });
 }
@@ -485,10 +552,14 @@ function finishedStateSchema(
 function stateSuccessBranches(): JsonSchema[] {
   return [
     idleStateSchema(),
-    queueStateSchema(),
+    queueStateSchema("human"),
+    queueStateSchema("ai"),
     setupStateSchema(),
-    playingStateSchema(),
-    finishedStateSchema(),
+    playingStateSchema("human_turn"),
+    playingStateSchema("ai_turn"),
+    playingStateSchema("scoring"),
+    finishedStateSchema("resignation"),
+    finishedStateSchema("completed_scoring"),
   ];
 }
 
@@ -522,43 +593,59 @@ function waitProperties(
       description: "Whether the caller should act, wait again, or stop.",
     },
     waitReason: { type: "string", const: waitReason },
-    afterRevision: REVISION_SCHEMA,
-    afterMessageId: MESSAGE_ID_SCHEMA,
+    afterRevision: {
+      ...REVISION_SCHEMA,
+      description: "Caller-supplied revision cursor echoed unchanged.",
+    },
+    afterMessageId: {
+      ...MESSAGE_ID_SCHEMA,
+      description: "Caller-supplied human-message cursor echoed unchanged.",
+    },
   };
 }
 
 function waitSuccessBranches(): JsonSchema[] {
   return [
     idleStateSchema(waitProperties("stopped", "room_stopped"), WAIT_REQUIRED),
-    queueStateSchema(waitProperties("waiting", "timeout"), WAIT_REQUIRED),
+    queueStateSchema(
+      "human",
+      waitProperties("waiting", "timeout"),
+      WAIT_REQUIRED,
+    ),
+    queueStateSchema("ai", waitProperties("waiting", "timeout"), WAIT_REQUIRED),
     setupStateSchema(waitProperties("waiting", "timeout"), WAIT_REQUIRED),
     playingStateSchema(
-      waitProperties("waiting", "timeout", {
-        turnActor: { type: "string", const: "human" },
-        scoring: SCORING_IDLE_SCHEMA,
-      }),
+      "human_turn",
+      waitProperties("waiting", "timeout"),
       WAIT_REQUIRED,
     ),
     playingStateSchema(
-      waitProperties("ready", "human_message", {
-        scoring: SCORING_IDLE_SCHEMA,
-      }),
+      "human_turn",
+      waitProperties("ready", "human_message"),
       WAIT_REQUIRED,
     ),
     playingStateSchema(
-      waitProperties("ready", "ai_turn", {
-        turnActor: { type: "string", const: "ai" },
-        scoring: SCORING_IDLE_SCHEMA,
-      }),
+      "ai_turn",
+      waitProperties("ready", "human_message"),
       WAIT_REQUIRED,
     ),
     playingStateSchema(
-      waitProperties("ready", "scoring", {
-        scoring: SCORING_PENDING_SCHEMA,
-      }),
+      "ai_turn",
+      waitProperties("ready", "ai_turn"),
+      WAIT_REQUIRED,
+    ),
+    playingStateSchema(
+      "scoring",
+      waitProperties("ready", "scoring"),
       WAIT_REQUIRED,
     ),
     finishedStateSchema(
+      "resignation",
+      waitProperties("ready", "game_finished"),
+      WAIT_REQUIRED,
+    ),
+    finishedStateSchema(
+      "completed_scoring",
       waitProperties("ready", "game_finished"),
       WAIT_REQUIRED,
     ),
@@ -616,6 +703,7 @@ export const WEBMCP_OUTPUT_SCHEMAS = {
       ),
       failureSchema([
         "model_id_required",
+        "model_id_too_long",
         "ai_queue_occupied",
         "already_matched",
       ]),

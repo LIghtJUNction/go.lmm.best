@@ -240,9 +240,9 @@ export const copy = {
     returnLobby: "返回大厅",
     errorLabel: "需要注意",
     closeError: "关闭提示",
-    ariaBoard: "9×9 围棋棋盘",
-    ariaIntersection: (x: number, y: number, occupied: string) =>
-      `第 ${y + 1} 行，第 ${x + 1} 列${occupied}`,
+    ariaBoard: (size: number) => `${size}×${size} 围棋棋盘`,
+    ariaIntersection: (coordinate: string, occupied: string) =>
+      `${coordinate}${occupied}`,
     occupiedBlack: "，黑棋",
     occupiedWhite: "，白棋",
     emptyIntersection: "，空位",
@@ -522,9 +522,9 @@ export const copy = {
     returnLobby: "Return to lobby",
     errorLabel: "Needs attention",
     closeError: "Dismiss message",
-    ariaBoard: "9×9 Go board",
-    ariaIntersection: (x: number, y: number, occupied: string) =>
-      `Row ${y + 1}, column ${x + 1}${occupied}`,
+    ariaBoard: (size: number) => `${size}×${size} Go board`,
+    ariaIntersection: (coordinate: string, occupied: string) =>
+      `${coordinate}${occupied}`,
     occupiedBlack: ", black stone",
     occupiedWhite: ", white stone",
     emptyIntersection: ", empty",

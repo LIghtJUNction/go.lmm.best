@@ -18,14 +18,24 @@ const requiredPromptTerms = [
   "send_go_message",
 ];
 
-describe.each([
-  "en",
-  "zh",
-] satisfies Language[])("%s AI invite prompt", (language) => {
-  it("contains the complete WebMCP fast-join contract", () => {
-    const prompt = copy[language].agentInvitePrompt("https://go.lmm.best");
+describe.each(["en", "zh"] satisfies Language[])(
+  "%s AI invite prompt",
+  (language) => {
+    it("contains the complete WebMCP fast-join contract", () => {
+      const prompt = copy[language].agentInvitePrompt("https://go.lmm.best");
 
-    for (const term of requiredPromptTerms) expect(prompt).toContain(term);
+      for (const term of requiredPromptTerms) expect(prompt).toContain(term);
+    });
+  },
+);
+
+describe("board accessibility copy", () => {
+  it("describes the active board size and Go coordinates", () => {
+    expect(copy.en.ariaBoard(19)).toBe("19×19 Go board");
+    expect(copy.zh.ariaBoard(13)).toBe("13×13 围棋棋盘");
+    expect(copy.en.ariaIntersection("J19", copy.en.occupiedBlack)).toBe(
+      "J19, black stone",
+    );
   });
 });
 

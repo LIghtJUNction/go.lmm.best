@@ -266,7 +266,7 @@ function App() {
   );
 
   const joinMatch = useCallback(
-    (input: { modelId: string; displayName?: string }) => {
+    (input: { modelId: string }) => {
       const currentView = viewRef.current;
       const currentQueueSide = queueSideRef.current;
 

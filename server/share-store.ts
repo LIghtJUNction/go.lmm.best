@@ -104,7 +104,8 @@ function parseRow(row: ShareRow | null): StoredShare | null {
 }
 
 export class SqliteShareStore {
-  readonly database: Database;
+  private readonly database: Database;
+  private closed = false;
 
   constructor(path: string) {
     this.database = new Database(path, { create: true, strict: true });
@@ -130,7 +131,13 @@ export class SqliteShareStore {
   }
 
   close(): void {
+    if (this.closed) return;
+    this.closed = true;
     this.database.close();
+  }
+
+  private ensureOpen(): void {
+    if (this.closed) throw new Error("Share store is closed");
   }
 
   create(
@@ -139,6 +146,7 @@ export class SqliteShareStore {
     snapshot: ShareSnapshot,
     now: number,
   ): StoredShare {
+    this.ensureOpen();
     const expiresAt = now + SHARE_RETENTION_MS;
     this.database
       .query(
@@ -162,6 +170,7 @@ export class SqliteShareStore {
   }
 
   get(shareId: string): StoredShare | null {
+    this.ensureOpen();
     const row = this.database
       .query("SELECT * FROM shares WHERE share_id = ?")
       .get(shareId) as ShareRow | null;
@@ -169,6 +178,7 @@ export class SqliteShareStore {
   }
 
   countRetained(now: number): number {
+    this.ensureOpen();
     const row = this.database
       .query("SELECT COUNT(*) AS count FROM shares WHERE expires_at > ?")
       .get(now) as { count: number };
@@ -182,6 +192,7 @@ export class SqliteShareStore {
     snapshot: ShareSnapshot,
     now: number,
   ): StoreMutationResult {
+    this.ensureOpen();
     return this.database.transaction(() => {
       const current = this.get(shareId);
       const error = this.mutationError(current, token, now);
@@ -209,6 +220,7 @@ export class SqliteShareStore {
   }
 
   heartbeat(shareId: string, token: string, now: number): StoreMutationResult {
+    this.ensureOpen();
     return this.database.transaction(() => {
       const current = this.get(shareId);
       const error = this.mutationError(current, token, now);
@@ -231,6 +243,7 @@ export class SqliteShareStore {
   }
 
   revoke(shareId: string, token: string, now: number): StoreMutationResult {
+    this.ensureOpen();
     return this.database.transaction(() => {
       const current = this.get(shareId);
       const error = this.mutationError(current, token, now);
@@ -249,6 +262,7 @@ export class SqliteShareStore {
   }
 
   expiredIds(now: number): string[] {
+    this.ensureOpen();
     return (
       this.database
         .query("SELECT share_id FROM shares WHERE expires_at <= ?")
@@ -257,6 +271,7 @@ export class SqliteShareStore {
   }
 
   deleteExpired(now: number): number {
+    this.ensureOpen();
     return this.database
       .query("DELETE FROM shares WHERE expires_at <= ?")
       .run(now).changes;

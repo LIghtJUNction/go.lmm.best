@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import type { Point } from "./go.js";
+import { WEBMCP_OUTPUT_SCHEMAS } from "./webmcp-output-schemas.js";
 import { registerWebMCPTools, type WebMCPCallbacks } from "./webmcp.js";
 
 type RegisteredTool = {
@@ -15,6 +16,7 @@ type RegisteredTool = {
 
 afterEach(() => {
   Reflect.deleteProperty(globalThis, "document");
+  Reflect.deleteProperty(globalThis, "window");
 });
 
 describe("WebMCP tool registration", () => {
@@ -26,10 +28,16 @@ describe("WebMCP tool registration", () => {
       value: {
         modelContext: {
           async registerTool(
-            tool: { name: string } & RegisteredTool,
+            tool: { name: string } & Omit<RegisteredTool, "outputSchema">,
             options?: { signal?: AbortSignal },
           ) {
-            tools.set(tool.name, tool);
+            expect(tool).not.toHaveProperty("outputSchema");
+            const outputSchema =
+              WEBMCP_OUTPUT_SCHEMAS[
+                tool.name as keyof typeof WEBMCP_OUTPUT_SCHEMAS
+              ];
+            expect(outputSchema).toBeDefined();
+            tools.set(tool.name, { ...tool, outputSchema });
             if (options?.signal) signals.push(options.signal);
           },
         },
@@ -92,6 +100,16 @@ describe("WebMCP tool registration", () => {
       },
       {
         ok: true,
+        phase: "queue",
+        revision: 0,
+        latestHumanMessageId: 0,
+        queueSide: "ai",
+        queuePosition: 1,
+        modelId: "provider/model",
+        actionRequired: "wait_for_go_turn",
+      },
+      {
+        ok: true,
         phase: "setup",
         revision: 0,
         latestHumanMessageId: 0,
@@ -105,6 +123,13 @@ describe("WebMCP tool registration", () => {
     for (const state of nonPlayingStates) {
       expect(getStateParser.parse(state)).toEqual(state);
     }
+    expect(() =>
+      getStateParser.parse({
+        ...nonPlayingStates[1],
+        modelId: "provider/model",
+        actionRequired: "wait_for_go_turn",
+      }),
+    ).toThrow();
 
     const playingState = {
       ok: true,
@@ -214,6 +239,35 @@ describe("WebMCP tool registration", () => {
         actionRequired: "game_finished",
       }),
     ).toThrow();
+    expect(
+      getStateParser.parse({
+        ...playingState,
+        turn: "white",
+        turnActor: "ai",
+        actionRequired: "play_go_move, pass_go_turn, or resign_go_game",
+      }),
+    ).toMatchObject({ phase: "playing", turnActor: "ai" });
+    expect(() =>
+      getStateParser.parse({
+        ...playingState,
+        turnActor: "ai",
+        actionRequired: "wait_for_go_turn",
+      }),
+    ).toThrow();
+    expect(() =>
+      getStateParser.parse({
+        ...playingState,
+        phase: "finished",
+        actionRequired: "game_finished",
+        endReason: "human-resigned",
+        scoring: {
+          status: "pending",
+          requestedBy: "human",
+          requestRevision: 13,
+          preview: score,
+        },
+      }),
+    ).toThrow();
     expect(() =>
       getStateParser.parse({
         ...playingState,
@@ -267,6 +321,18 @@ describe("WebMCP tool registration", () => {
         afterMessageId: 1,
       }),
     ).toThrow();
+    expect(
+      waitParser.parse({
+        ...playingState,
+        turn: "white",
+        turnActor: "ai",
+        actionRequired: "play_go_move, pass_go_turn, or resign_go_game",
+        waitStatus: "ready",
+        waitReason: "human_message",
+        afterRevision: 13,
+        afterMessageId: 1,
+      }),
+    ).toMatchObject({ waitStatus: "ready", waitReason: "human_message" });
 
     const playTool = tools.get("play_go_move");
     const playOutputParser = z.fromJSONSchema(
@@ -352,14 +418,24 @@ describe("WebMCP tool registration", () => {
       ok: false,
       error: "model_id_required",
     });
+    const longModelResult = await tools
+      .get("join_go_match")
+      ?.execute({ modelId: "m".repeat(121) });
+    expect(longModelResult).toEqual({
+      ok: false,
+      error: "model_id_too_long",
+    });
+    const joinOutputParser = z.fromJSONSchema(
+      tools.get("join_go_match")?.outputSchema as Parameters<
+        typeof z.fromJSONSchema
+      >[0],
+    );
+    expect(joinOutputParser.parse(longModelResult)).toEqual(longModelResult);
     expect(joinMatch).not.toHaveBeenCalled();
 
-    await tools
-      .get("join_go_match")
-      ?.execute({ modelId: "  openai/gpt-5  ", displayName: "  Go Agent  " });
+    await tools.get("join_go_match")?.execute({ modelId: "  openai/gpt-5  " });
     expect(joinMatch).toHaveBeenCalledWith({
       modelId: "openai/gpt-5",
-      displayName: "Go Agent",
     });
 
     expect(
@@ -399,6 +475,51 @@ describe("WebMCP tool registration", () => {
     expect(signals.every((signal) => signal.aborted)).toBe(true);
   });
 
+  it("exposes complete descriptors through the compatibility bridge", async () => {
+    Object.defineProperty(globalThis, "window", {
+      configurable: true,
+      value: {},
+    });
+    Object.defineProperty(globalThis, "document", {
+      configurable: true,
+      value: {},
+    });
+    const onStatus = vi.fn();
+    const joinMatch = vi.fn(() => ({ ok: true }));
+    const dispose = registerWebMCPTools(
+      {
+        joinMatch,
+        getGameState: () => ({ ok: true }),
+        waitForTurn: () => ({ ok: true }),
+        playMove: () => ({ ok: true }),
+        passTurn: () => ({ ok: true }),
+        resignGame: () => ({ ok: true }),
+        respondScoring: () => ({ ok: true }),
+        sendMessage: () => ({ ok: true }),
+      },
+      onStatus,
+    );
+
+    const bridge = globalThis.window.goWebMCP;
+    expect(bridge?.listTools()).toHaveLength(8);
+    const descriptors = bridge?.describeTools() ?? [];
+    expect(descriptors).toHaveLength(8);
+    expect(
+      descriptors.every((tool) =>
+        Array.isArray((tool.outputSchema as { oneOf?: unknown }).oneOf),
+      ),
+    ).toBe(true);
+    expect(descriptors).not.toHaveProperty("0.execute");
+    await expect(
+      bridge?.callTool("join_go_match", { modelId: "m".repeat(121) }),
+    ).resolves.toEqual({ ok: false, error: "model_id_too_long" });
+    expect(joinMatch).not.toHaveBeenCalled();
+    expect(onStatus).toHaveBeenLastCalledWith("bridge");
+
+    dispose();
+    expect(globalThis.window.goWebMCP).toBeUndefined();
+  });
+
   it("reports an unsupported browser after one capability check", () => {
     Object.defineProperty(globalThis, "document", {
       configurable: true,
@@ -424,6 +545,44 @@ describe("WebMCP tool registration", () => {
       "checking",
       "unsupported",
     ]);
+  });
+
+  it("does not publish a late registration failure after disposal", async () => {
+    let rejectRegistration: ((reason?: unknown) => void) | undefined;
+    Object.defineProperty(globalThis, "document", {
+      configurable: true,
+      value: {
+        modelContext: {
+          registerTool: vi.fn(
+            () =>
+              new Promise<void>((_resolve, reject) => {
+                rejectRegistration = reject;
+              }),
+          ),
+        },
+      },
+    });
+    const onStatus = vi.fn();
+    const dispose = registerWebMCPTools(
+      {
+        joinMatch: () => ({ ok: true }),
+        getGameState: () => ({ ok: true }),
+        waitForTurn: () => ({ ok: true }),
+        playMove: () => ({ ok: true }),
+        passTurn: () => ({ ok: true }),
+        resignGame: () => ({ ok: true }),
+        respondScoring: () => ({ ok: true }),
+        sendMessage: () => ({ ok: true }),
+      },
+      onStatus,
+    );
+
+    await vi.waitFor(() => expect(rejectRegistration).toBeTypeOf("function"));
+    dispose();
+    rejectRegistration?.(new Error("late failure"));
+    await Promise.resolve();
+
+    expect(onStatus.mock.calls.map(([status]) => status)).toEqual(["checking"]);
   });
 
   it("does not report ready until every tool finishes registering", async () => {

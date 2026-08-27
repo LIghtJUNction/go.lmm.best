@@ -15,27 +15,39 @@ export type ShareAppOptions = {
   allowedOrigins: ReadonlySet<string>;
   now?: () => number;
   requestIp?: (request: Request) => string;
+  maxSseBufferedBytes?: number;
 };
 
 type RateEntry = { count: number; resetAt: number };
+type RateDecision = { allowed: boolean; resetAt: number };
 const MAX_RATE_LIMIT_KEYS = 100_000;
+const DEFAULT_MAX_SSE_BUFFERED_BYTES = MAX_SHARE_BODY_BYTES + 64 * 1024;
 
 class FixedWindowRateLimiter {
   private readonly entries = new Map<string, RateEntry>();
 
   constructor(private readonly now: () => number) {}
 
-  consume(key: string, limit: number, windowMs: number): boolean {
+  consume(key: string, limit: number, windowMs: number): RateDecision {
     const now = this.now();
     const current = this.entries.get(key);
     if (!current || current.resetAt <= now) {
-      if (!current && this.entries.size >= MAX_RATE_LIMIT_KEYS) return false;
-      this.entries.set(key, { count: 1, resetAt: now + windowMs });
-      return true;
+      if (!current && this.entries.size >= MAX_RATE_LIMIT_KEYS) {
+        let resetAt = now + windowMs;
+        for (const entry of this.entries.values()) {
+          resetAt = Math.min(resetAt, entry.resetAt);
+        }
+        return { allowed: false, resetAt };
+      }
+      const resetAt = now + windowMs;
+      this.entries.set(key, { count: 1, resetAt });
+      return { allowed: true, resetAt };
     }
-    if (current.count >= limit) return false;
+    if (current.count >= limit) {
+      return { allowed: false, resetAt: current.resetAt };
+    }
     current.count += 1;
-    return true;
+    return { allowed: true, resetAt: current.resetAt };
   }
 
   sweep(): void {
@@ -96,19 +108,25 @@ function problemResponse(
 
 function hostToken(request: Request): string | null {
   const authorization = request.headers.get("authorization");
-  if (!authorization?.startsWith("Bearer ")) return null;
-  const token = authorization.slice("Bearer ".length).trim();
+  const match = authorization?.match(/^Bearer\s+(.+)$/i);
+  const token = match?.[1]?.trim() ?? "";
   return token.length >= 32 && token.length <= 128 ? token : null;
 }
 
-function shareRoute(
-  pathname: string,
-):
+type ShareRoute =
   | { kind: "collection" }
   | { kind: "share"; shareId: string }
   | { kind: "heartbeat"; shareId: string }
-  | { kind: "events"; shareId: string }
-  | null {
+  | { kind: "events"; shareId: string };
+
+type RatePolicy = {
+  operation: "create" | "read" | "events" | "heartbeat" | "mutation";
+  limit: number;
+  windowMs: number;
+  mutation: boolean;
+};
+
+function shareRoute(pathname: string): ShareRoute | null {
   if (pathname === "/api/v1/shares") return { kind: "collection" };
   const match = pathname.match(
     /^\/api\/v1\/shares\/([^/]+)(?:\/(heartbeat|events))?$/,
@@ -119,8 +137,57 @@ function shareRoute(
   return { kind: "share", shareId: match[1] };
 }
 
+function ratePolicy(route: ShareRoute, method: string): RatePolicy | null {
+  if (route.kind === "collection" && method === "POST") {
+    return {
+      operation: "create",
+      limit: 10,
+      windowMs: 60 * 60 * 1000,
+      mutation: true,
+    };
+  }
+  if (route.kind === "events" && method === "GET") {
+    return {
+      operation: "events",
+      limit: 120,
+      windowMs: 60 * 1000,
+      mutation: false,
+    };
+  }
+  if (route.kind === "heartbeat" && method === "POST") {
+    return {
+      operation: "heartbeat",
+      limit: 120,
+      windowMs: 60 * 1000,
+      mutation: true,
+    };
+  }
+  if (route.kind === "share" && method === "GET") {
+    return {
+      operation: "read",
+      limit: 120,
+      windowMs: 60 * 1000,
+      mutation: false,
+    };
+  }
+  if (route.kind === "share" && (method === "PUT" || method === "DELETE")) {
+    return {
+      operation: "mutation",
+      limit: 120,
+      windowMs: 60 * 1000,
+      mutation: true,
+    };
+  }
+  return null;
+}
+
 async function readJson(request: Request): Promise<unknown | ShareProblem> {
-  if (!request.headers.get("content-type")?.startsWith("application/json")) {
+  const mediaType = request.headers
+    .get("content-type")
+    ?.split(";", 1)[0]
+    ?.trim()
+    .toLowerCase();
+  if (mediaType !== "application/json") {
     return shareProblem("invalid_content_type");
   }
   const declaredLength = Number(request.headers.get("content-length") ?? 0);
@@ -181,55 +248,102 @@ function streamShare(
   relay: ShareRelay,
   shareId: string,
   request: Request,
+  maxBufferedBytes: number,
 ): Response {
+  if (request.signal.aborted) return new Response(null, { status: 499 });
+
   let subscription: ShareSubscriptionResult | undefined;
-  let unsubscribe = () => {};
+  let unsubscribe: (() => void) | null = null;
+  let releaseRequested = false;
+  let listeningForAbort = false;
   let closed = false;
-  const stream = new ReadableStream<Uint8Array>({
-    start(controller) {
-      const subscriber: ShareSubscriber = {
-        send(event) {
+
+  const releaseSubscription = () => {
+    releaseRequested = true;
+    if (!unsubscribe) return;
+    const release = unsubscribe;
+    unsubscribe = null;
+    queueMicrotask(release);
+  };
+  const removeAbortListener = () => {
+    if (!listeningForAbort) return;
+    listeningForAbort = false;
+    request.signal.removeEventListener("abort", handleAbort);
+  };
+  const closeStream = (
+    controller: ReadableStreamDefaultController<Uint8Array>,
+    shouldClose: boolean,
+  ) => {
+    if (closed) return;
+    closed = true;
+    removeAbortListener();
+    if (shouldClose) {
+      try {
+        controller.close();
+      } catch {
+        // The browser may have already closed the stream.
+      }
+    }
+    releaseSubscription();
+  };
+  let streamController: ReadableStreamDefaultController<Uint8Array> | null =
+    null;
+  const handleAbort = () => {
+    if (streamController) closeStream(streamController, true);
+  };
+
+  const stream = new ReadableStream<Uint8Array>(
+    {
+      start(controller) {
+        streamController = controller;
+        const enqueue = (chunk: Uint8Array) => {
           if (closed) return;
-          try {
-            controller.enqueue(encodeSse(event));
-          } catch {
-            closed = true;
-            unsubscribe();
+          const desiredSize = controller.desiredSize;
+          if (desiredSize === null || desiredSize < chunk.byteLength) {
+            closeStream(controller, true);
+            return;
           }
-        },
-        ping() {
-          if (closed) return;
           try {
-            controller.enqueue(encoder.encode(": keepalive\n\n"));
+            controller.enqueue(chunk);
           } catch {
-            closed = true;
-            unsubscribe();
+            closeStream(controller, false);
           }
-        },
-        close() {
-          if (closed) return;
-          closed = true;
-          try {
-            controller.close();
-          } catch {
-            // The browser may have already closed the stream.
-          }
-        },
-      };
-      subscription = relay.subscribe(shareId, subscriber);
-      if (subscription.ok) unsubscribe = subscription.unsubscribe;
-      else subscriber.close();
+        };
+        const subscriber: ShareSubscriber = {
+          send(event) {
+            enqueue(encodeSse(event));
+          },
+          ping() {
+            enqueue(encoder.encode(": keepalive\n\n"));
+          },
+          close() {
+            closeStream(controller, true);
+          },
+        };
+        subscription = relay.subscribe(shareId, subscriber);
+        if (subscription.ok) {
+          unsubscribe = subscription.unsubscribe;
+          if (releaseRequested) releaseSubscription();
+        } else {
+          closeStream(controller, true);
+        }
+      },
+      cancel() {
+        if (streamController) closeStream(streamController, false);
+      },
     },
-    cancel() {
-      closed = true;
-      unsubscribe();
-    },
-  });
+    new ByteLengthQueuingStrategy({ highWaterMark: maxBufferedBytes }),
+  );
 
   if (!subscription || !subscription.ok) {
     return problemResponse(subscription ?? shareProblem("share_not_found"));
   }
-  request.signal.addEventListener("abort", unsubscribe, { once: true });
+  if (request.signal.aborted) handleAbort();
+  else {
+    listeningForAbort = true;
+    request.signal.addEventListener("abort", handleAbort, { once: true });
+    if (request.signal.aborted) handleAbort();
+  }
   return new Response(stream, {
     headers: {
       "Cache-Control": "no-store",
@@ -264,13 +378,14 @@ function handleShareEvents(
   relay: ShareRelay,
   shareId: string,
   request: Request,
+  maxBufferedBytes: number,
 ): Response {
   if (request.method !== "GET") {
     return problemResponse(shareProblem("method_not_allowed"), {
       Allow: "GET",
     });
   }
-  return streamShare(relay, shareId, request);
+  return streamShare(relay, shareId, request, maxBufferedBytes);
 }
 
 function handleShareHeartbeat(
@@ -333,6 +448,11 @@ export function createShareApp(relay: ShareRelay, options: ShareAppOptions) {
   const now = options.now ?? Date.now;
   const requestIp = options.requestIp ?? (() => "unknown");
   const rateLimiter = new FixedWindowRateLimiter(now);
+  const maxSseBufferedBytes =
+    options.maxSseBufferedBytes ?? DEFAULT_MAX_SSE_BUFFERED_BYTES;
+  if (!Number.isSafeInteger(maxSseBufferedBytes) || maxSseBufferedBytes <= 0) {
+    throw new Error("maxSseBufferedBytes must be a positive safe integer");
+  }
   let lastRateSweep = now();
 
   return async function handleRequest(request: Request): Promise<Response> {
@@ -354,34 +474,46 @@ export function createShareApp(relay: ShareRelay, options: ShareAppOptions) {
       lastRateSweep = currentTime;
     }
 
-    const ip = requestIp(request);
-    const mutation = request.method !== "GET";
+    const dispatch = () => {
+      if (route.kind === "collection") {
+        return handleShareCollection(relay, request);
+      }
+      if (route.kind === "events") {
+        return handleShareEvents(
+          relay,
+          route.shareId,
+          request,
+          maxSseBufferedBytes,
+        );
+      }
+      if (route.kind === "heartbeat") {
+        return handleShareHeartbeat(relay, route.shareId, request);
+      }
+      return handleShareResource(relay, route.shareId, request);
+    };
+    const policy = ratePolicy(route, request.method);
+    if (!policy) return dispatch();
     if (
-      mutation &&
+      policy.mutation &&
       !options.allowedOrigins.has(request.headers.get("origin") ?? "")
     ) {
       return problemResponse(shareProblem("invalid_origin"));
     }
-    const rateKey = `${route.kind}:${ip}`;
-    const rateLimit = route.kind === "collection" ? 10 : 120;
-    const rateWindowMs =
-      route.kind === "collection" ? 60 * 60 * 1000 : 60 * 1000;
-    if (!rateLimiter.consume(rateKey, rateLimit, rateWindowMs)) {
+    const decision = rateLimiter.consume(
+      `${policy.operation}:${requestIp(request)}`,
+      policy.limit,
+      policy.windowMs,
+    );
+    if (!decision.allowed) {
+      const retryAfterSeconds = Math.max(
+        1,
+        Math.ceil((decision.resetAt - currentTime) / 1000),
+      );
       return problemResponse(shareProblem("rate_limited"), {
-        "Retry-After": String(rateWindowMs / 1000),
+        "Retry-After": String(retryAfterSeconds),
       });
     }
-
-    if (route.kind === "collection") {
-      return handleShareCollection(relay, request);
-    }
-    if (route.kind === "events") {
-      return handleShareEvents(relay, route.shareId, request);
-    }
-    if (route.kind === "heartbeat") {
-      return handleShareHeartbeat(relay, route.shareId, request);
-    }
-    return handleShareResource(relay, route.shareId, request);
+    return dispatch();
   };
 }
 

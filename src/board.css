@@ -69,12 +69,12 @@
   transform: translate(-50%, -50%);
 }
 
-.intersection:disabled {
+.intersection[aria-disabled="true"] {
   cursor: default;
   opacity: 1;
 }
 
-.intersection:not(:disabled)::before {
+.intersection[aria-disabled="false"]::before {
   position: absolute;
   inset: 18%;
   content: "";
@@ -85,8 +85,8 @@
     background-color 140ms ease;
 }
 
-.intersection:not(:disabled):hover::before,
-.intersection:not(:disabled):focus-visible::before {
+.intersection[aria-disabled="false"]:hover::before,
+.intersection[aria-disabled="false"]:focus-visible::before {
   border-color: color-mix(in srgb, var(--board-line) 64%, transparent);
   background: rgb(255 250 229 / 28%);
 }

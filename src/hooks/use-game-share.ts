@@ -66,29 +66,39 @@ export function useGameShare(snapshot: ShareSnapshot | null) {
   const privateSessionRef = useRef<PrivateSession | null>(null);
   const pendingSnapshotRef = useRef<ShareSnapshot | null>(null);
   const lastPublishedSnapshotRef = useRef<ShareSnapshot | null>(null);
+  const latestSnapshotRef = useRef(snapshot);
+  latestSnapshotRef.current = snapshot;
   const publishingRef = useRef(false);
   const generationRef = useRef(0);
   const createAbortRef = useRef<AbortController | null>(null);
 
   const flush = useCallback(async () => {
-    if (publishingRef.current) return;
+    if (
+      publishingRef.current ||
+      !pendingSnapshotRef.current ||
+      !privateSessionRef.current
+    ) {
+      return;
+    }
     publishingRef.current = true;
+    let recoveredStaleVersion: number | null = null;
+    setState((current) => ({ ...current, status: "syncing", error: null }));
     try {
-      while (pendingSnapshotRef.current) {
-        const nextSnapshot = pendingSnapshotRef.current;
+      while (true) {
+        const nextSnapshot: ShareSnapshot | null = pendingSnapshotRef.current;
+        if (!nextSnapshot) break;
         pendingSnapshotRef.current = null;
-        const session = privateSessionRef.current;
+        const session: PrivateSession | null = privateSessionRef.current;
         if (!session) break;
         const generation = generationRef.current;
         const nextVersion = session.version + 1;
-        setState((current) => ({ ...current, status: "syncing", error: null }));
         try {
-          const response = await publishGameShare(
-            session.shareId,
-            session.hostToken,
-            nextVersion,
-            nextSnapshot,
-          );
+          const response = await publishGameShare({
+            shareId: session.shareId,
+            hostToken: session.hostToken,
+            version: nextVersion,
+            snapshot: nextSnapshot,
+          });
           if (
             generation !== generationRef.current ||
             privateSessionRef.current !== session
@@ -101,13 +111,25 @@ export function useGameShare(snapshot: ShareSnapshot | null) {
           session.hostStatus = response.hostStatus;
           session.lastSyncedAt = response.updatedAt;
           setState({
-            status: "live",
+            status: pendingSnapshotRef.current ? "syncing" : "live",
             session: publicSession(session),
             error: null,
           });
         } catch (error) {
           if (generation !== generationRef.current) continue;
-          pendingSnapshotRef.current = nextSnapshot;
+          if (
+            error instanceof ShareClientError &&
+            error.code === "stale_version" &&
+            error.currentVersion !== undefined &&
+            error.currentVersion > session.version &&
+            recoveredStaleVersion !== error.currentVersion
+          ) {
+            session.version = error.currentVersion;
+            recoveredStaleVersion = error.currentVersion;
+            pendingSnapshotRef.current ??= nextSnapshot;
+            continue;
+          }
+          pendingSnapshotRef.current ??= nextSnapshot;
           setState((current) => ({
             ...current,
             status: "error",
@@ -144,11 +166,17 @@ export function useGameShare(snapshot: ShareSnapshot | null) {
       };
       privateSessionRef.current = session;
       lastPublishedSnapshotRef.current = snapshot;
+      const latestSnapshot = latestSnapshotRef.current;
+      if (latestSnapshot && latestSnapshot !== snapshot) {
+        lastPublishedSnapshotRef.current = latestSnapshot;
+        pendingSnapshotRef.current = latestSnapshot;
+      }
       setState({
-        status: "live",
+        status: pendingSnapshotRef.current ? "syncing" : "live",
         session: publicSession(session),
         error: null,
       });
+      if (pendingSnapshotRef.current) void flush();
       return session.shareUrl;
     } catch (error) {
       if (controller.signal.aborted) return null;
@@ -198,6 +226,19 @@ export function useGameShare(snapshot: ShareSnapshot | null) {
       return true;
     } catch (error) {
       if (generation !== generationRef.current) return false;
+      if (
+        error instanceof ShareClientError &&
+        ["share_revoked", "share_expired", "share_not_found"].includes(
+          error.code,
+        )
+      ) {
+        generationRef.current += 1;
+        privateSessionRef.current = null;
+        pendingSnapshotRef.current = null;
+        lastPublishedSnapshotRef.current = null;
+        setState(initialState);
+        return true;
+      }
       setState((current) => ({
         ...current,
         status: "error",

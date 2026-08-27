@@ -7,13 +7,18 @@ import {
 export type WebMCPStatus = "checking" | "available" | "bridge" | "unsupported";
 
 const GO_WEBMCP_BRIDGE_NAME = "goWebMCP";
+const MAX_WEBMCP_MODEL_ID_LENGTH = 120;
+
 type JsonObject = { [key: string]: JsonValue | undefined };
 type JsonValue = string | number | boolean | null | JsonObject | JsonValue[];
+
+type WebMCPToolDescriptor = Omit<WebMCPTool, "execute">;
 
 type GoWebMCPBridge = {
   readonly version: 1;
   readonly source: "go.lmm.best";
   listTools: () => string[];
+  describeTools: () => WebMCPToolDescriptor[];
   callTool: (name: string, input?: JsonValue) => Promise<unknown>;
 };
 
@@ -36,9 +41,11 @@ type WebMCPTool = {
   };
 };
 
+type NativeWebMCPTool = Omit<WebMCPTool, "outputSchema">;
+
 type WebMCPModelContext = {
   registerTool?: (
-    tool: WebMCPTool,
+    tool: NativeWebMCPTool,
     options?: { signal?: AbortSignal },
   ) => void | Promise<void>;
 };
@@ -52,10 +59,7 @@ type NavigatorWithModelContext = Navigator & {
 };
 
 export type WebMCPCallbacks = {
-  joinMatch: (input: {
-    modelId: string;
-    displayName?: string;
-  }) => unknown | Promise<unknown>;
+  joinMatch: (input: { modelId: string }) => unknown | Promise<unknown>;
   getGameState: () => unknown | Promise<unknown>;
   waitForTurn: (
     afterRevision: number,
@@ -145,7 +149,7 @@ function revisionSchema(): Record<string, JsonSchema> {
 }
 
 function toolDescription(summary: string, successContract: string): string {
-  return `${summary} The formal result contract is declared in outputSchema. Success result: ${successContract}. Failure result: { ok: false, error: string, ... }.`;
+  return `${summary} Success result: ${successContract}. Failure result: { ok: false, error: string, ... }. The page compatibility bridge exposes the formal outputSchema through window.goWebMCP.describeTools().`;
 }
 
 function createJoinMatchTool(callbacks: WebMCPCallbacks): WebMCPTool {
@@ -160,14 +164,9 @@ function createJoinMatchTool(callbacks: WebMCPCallbacks): WebMCPTool {
         modelId: {
           type: "string",
           minLength: 1,
-          maxLength: 120,
+          maxLength: MAX_WEBMCP_MODEL_ID_LENGTH,
           description:
             "Required real model identifier, for example openai/gpt-5.6-sol.",
-        },
-        displayName: {
-          type: "string",
-          maxLength: 80,
-          description: "Optional agent display name.",
         },
       },
       ["modelId"],
@@ -177,12 +176,10 @@ function createJoinMatchTool(callbacks: WebMCPCallbacks): WebMCPTool {
       const values = asRecord(input);
       const modelId = isString(values.modelId) ? values.modelId.trim() : "";
       if (!modelId) return { ok: false, error: "model_id_required" };
-      return callbacks.joinMatch({
-        modelId,
-        displayName: isString(values.displayName)
-          ? values.displayName.trim() || undefined
-          : undefined,
-      });
+      if (modelId.length > MAX_WEBMCP_MODEL_ID_LENGTH) {
+        return { ok: false, error: "model_id_too_long" };
+      }
+      return callbacks.joinMatch({ modelId });
     },
   };
 }
@@ -394,10 +391,14 @@ function installCompatibilityBridge(tools: WebMCPTool[]): () => void {
   const browserWindow = runtimeGlobals.window;
   if (!browserWindow) return () => undefined;
   const byName = new Map(tools.map((tool) => [tool.name, tool]));
+  const descriptors = tools.map(({ execute: _execute, ...descriptor }) =>
+    Object.freeze(descriptor),
+  );
   const bridge: GoWebMCPBridge = Object.freeze({
     version: 1,
     source: "go.lmm.best",
     listTools: () => [...byName.keys()],
+    describeTools: () => structuredClone(descriptors),
     callTool: async (name, input = {}) => {
       const tool = byName.get(name);
       return tool
@@ -440,12 +441,22 @@ export function registerWebMCPTools(
   void (async () => {
     try {
       for (const tool of tools) {
-        await registerTool(tool, { signal: controller.signal });
+        const nativeTool: NativeWebMCPTool = {
+          name: tool.name,
+          description: tool.description,
+          inputSchema: tool.inputSchema,
+          execute: tool.execute,
+          annotations: tool.annotations,
+        };
+        await registerTool(nativeTool, { signal: controller.signal });
       }
       if (!controller.signal.aborted) onStatus("available");
     } catch {
+      const disposed = controller.signal.aborted;
       controller.abort();
-      onStatus(runtimeGlobals.window ? "bridge" : "unsupported");
+      if (!disposed) {
+        onStatus(runtimeGlobals.window ? "bridge" : "unsupported");
+      }
     }
   })();
 
