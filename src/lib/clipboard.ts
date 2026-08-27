@@ -19,7 +19,11 @@ export async function writeToClipboard(text: string): Promise<boolean> {
   textArea.setSelectionRange(0, text.length);
 
   try {
-    return document.execCommand("copy");
+    // `execCommand` is the only broadly supported fallback when the async
+    // Clipboard API is unavailable. Keep the legacy surface isolated here so
+    // the rest of the application never depends on its deprecated DOM typing.
+    const legacyDocument = document as { execCommand(command: "copy"): boolean };
+    return legacyDocument.execCommand("copy");
   } catch {
     return false;
   } finally {
