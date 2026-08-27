@@ -37,7 +37,7 @@ const allowedOrigins = new Set(
 );
 if (allowedOrigins.size === 0) throw new Error("APP_ORIGIN must not be empty");
 const databasePath =
-  process.env.DATABASE_PATH ?? "/var/lib/go-lmm.best/go.sqlite3";
+  process.env.DATABASE_PATH ?? "/var/lib/go-lmm-best/go.sqlite3";
 
 const databaseDirectory = dirname(databasePath);
 if (!existsSync(databaseDirectory)) {

@@ -1,6 +1,6 @@
 # Backend deployment
 
-The API is a standalone Bun-compiled Linux x86-64 baseline binary. Production runs it as `/opt/go-lmm.best/bin/go-lmm-best-api`, stores live-share snapshots in SQLite at `/var/lib/go-lmm.best/go.sqlite3`, and exposes it only through Nginx on `127.0.0.1:8787`. The player browser remains authoritative; the service validates, stores, and fans out sanitized read-only snapshots over SSE.
+The API is a standalone Bun-compiled Linux x86-64 baseline binary. Production runs it as `/opt/go-lmm-best/bin/go-lmm-best-api`, stores live-share snapshots in SQLite at `/var/lib/go-lmm-best/go.sqlite3`, and exposes it only through Nginx on `127.0.0.1:8787`. The player browser remains authoritative; the service validates, stores, and fans out sanitized read-only snapshots over SSE.
 
 ## Build
 
@@ -21,7 +21,7 @@ The target is deliberately fixed to `bun-linux-x64-baseline`. The script builds 
 Install the unit and non-secret environment template:
 
 ```bash
-sudo install -d -o root -g root -m 0755 /opt/go-lmm.best/bin
+sudo install -d -o root -g root -m 0755 /opt/go-lmm-best/bin
 sudo install -o root -g root -m 0644 deploy/systemd/go-lmm-best-api.service \
   /etc/systemd/system/go-lmm-best-api.service
 sudo install -o root -g root -m 0600 deploy/env/go-lmm-best-api.env.example \
@@ -30,7 +30,7 @@ sudo systemctl daemon-reload
 sudo systemctl enable go-lmm-best-api.service
 ```
 
-The unit uses `DynamicUser=yes` with `StateDirectory=go-lmm.best`. systemd therefore creates and preserves `/var/lib/go-lmm.best` with ownership suitable for the transient service UID; do not pre-create the database as an unrelated user. The sandbox permits binding only TCP port 8787 and permits network traffic only over loopback. Keep `HOST=127.0.0.1` and `APP_ORIGIN=https://go.lmm.best` in the environment file. The default limits are 50 spectators per share and 1000 SSE connections globally.
+The unit uses `DynamicUser=yes` with `StateDirectory=go-lmm-best`. systemd therefore creates and preserves `/var/lib/go-lmm-best` with ownership suitable for the transient service UID; do not pre-create the database as an unrelated user. When migrating from the legacy `go-lmm.best` state directory, take a verified SQLite backup first and restore it into the new directory while the service is stopped. The sandbox permits binding only TCP port 8787 and permits network traffic only over loopback. Keep `HOST=127.0.0.1` and `APP_ORIGIN=https://go.lmm.best` in the environment file. The default limits are 50 spectators per share and 1000 SSE connections globally.
 
 Install the Nginx security-header and backend location snippets:
 
@@ -108,7 +108,7 @@ The installer serializes deployments with `flock`, validates archive paths and b
 Before replacing or restarting the API, prove that the configured binary path is stable in the host mount namespace. If systemd reports an active process but direct lookup fails, stop the deployment: back up `/proc/$pid/exe`, capture `namei`, `findmnt`, inode, and checksum evidence, and investigate the host filesystem. Never restart a service whose configured `ExecStart` path cannot be read.
 
 ```bash
-bin=/opt/go.lmm.best/bin/go-lmm-best-api
+bin=/opt/go-lmm-best/bin/go-lmm-best-api
 pid="$(sudo systemctl show -p MainPID --value go-lmm-best-api.service)"
 sudo test "$pid" -gt 1
 sudo test -r "/proc/$pid/exe"
@@ -124,7 +124,7 @@ Build and transfer the binary plus its checksum to a staging directory first. On
 ```bash
 set -euo pipefail
 release=/tmp/go-lmm-best-api.release
-bin=/opt/go-lmm.best/bin/go-lmm-best-api
+bin=/opt/go-lmm-best/bin/go-lmm-best-api
 
 cd "$release"
 sha256sum --check go-lmm-best-api.sha256
@@ -154,13 +154,13 @@ Use SQLite's online backup API rather than copying a live database or its WAL fi
 set -euo pipefail
 stamp="$(date -u +%Y%m%dT%H%M%SZ)"
 sudo install -d -o root -g root -m 0700 /var/backups/go-lmm.best
-sudo sqlite3 /var/lib/go-lmm.best/go.sqlite3 \
+sudo sqlite3 /var/lib/go-lmm-best/go.sqlite3 \
   ".backup '/var/backups/go-lmm.best/go-${stamp}.sqlite3'"
 sudo chmod 0600 "/var/backups/go-lmm.best/go-${stamp}.sqlite3"
 sudo sqlite3 "/var/backups/go-lmm.best/go-${stamp}.sqlite3" 'PRAGMA integrity_check;'
 ```
 
-The final command must print `ok`. Keep backups root-owned and outside `StateDirectory`. Do not `chown` the live database to a fixed numeric UID: a `DynamicUser` UID may differ after reboot. For a restore, record the current state-directory owner with `stat -c '%u:%g' /var/lib/go-lmm.best`, stop the service, restore through SQLite into a temporary file in the state directory, apply that recorded numeric owner and mode `0640`, remove stale `go.sqlite3-wal`/`go.sqlite3-shm`, atomically rename the restored database, then start the service.
+The final command must print `ok`. Keep backups root-owned and outside `StateDirectory`. Do not `chown` the live database to a fixed numeric UID: a `DynamicUser` UID may differ after reboot. For a restore, record the current state-directory owner with `stat -c '%u:%g' /var/lib/go-lmm-best`, stop the service, restore through SQLite into a temporary file in the state directory, apply that recorded numeric owner and mode `0640`, remove stale `go.sqlite3-wal`/`go.sqlite3-shm`, atomically rename the restored database, then start the service.
 
 ## Verification
 
@@ -190,8 +190,8 @@ No automatic rollback job or timer is installed. If health or smoke checks fail,
 
    ```bash
    set -euo pipefail
-   bin=/opt/go-lmm.best/bin/go-lmm-best-api
-   previous=/opt/go.lmm.best/bin/go-lmm-best-api.previous-<sha-prefix>
+   bin=/opt/go-lmm-best/bin/go-lmm-best-api
+   previous=/opt/go-lmm-best/bin/go-lmm-best-api.previous-<sha-prefix>
    expected_sha=<full-sha256-from-release-manifest>
    sudo test -x "$previous"
    test "$(sudo sha256sum "$previous" | cut -d' ' -f1)" = "$expected_sha"
