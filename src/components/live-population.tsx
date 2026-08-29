@@ -47,8 +47,9 @@ export function LivePopulationStrip({
       aria-label={t.livePopulation}
       title={t.localPopulationNote}
     >
-      <div className="mx-auto flex min-h-10 max-w-7xl items-center gap-3 overflow-x-auto px-4 py-2 text-xs text-muted-foreground sm:px-6 lg:px-8">
+      <div className="mx-auto flex min-h-11 max-w-7xl items-center gap-3 overflow-x-auto px-4 py-2 text-sm text-muted-foreground sm:px-6 lg:px-8">
         <Badge variant="secondary" className="shrink-0">
+          <span className="size-1.5 rounded-full bg-primary" aria-hidden="true" />
           {t.live}
         </Badge>
         {values.map((item, index) => (

@@ -25,7 +25,9 @@ import { initialLanguage, initialTheme } from "@/lib/preferences";
 import { createShareSnapshot } from "@/lib/share";
 import {
   appendMessage,
+  BOARD_SIZES,
   createGame,
+  DEFAULT_BOARD_SIZE,
   getPopulation,
   passSessionTurn,
   playSessionMove,
@@ -33,7 +35,6 @@ import {
   resignSessionGame,
   respondToSessionScoring,
   withdrawSessionScoring,
-  type BoardSize,
   type GameState,
   type MatchMode,
   type QueueSide,
@@ -302,8 +303,8 @@ function App() {
           modelId: input.modelId,
           revision: 0,
           latestHumanMessageId: 0,
-          defaultBoardSize: 9,
-          boardOptions: [9, 13, 19],
+          defaultBoardSize: DEFAULT_BOARD_SIZE,
+          boardOptions: BOARD_SIZES,
           actionRequired: "wait_for_go_turn",
         };
       }
@@ -361,8 +362,8 @@ function App() {
         revision: currentGame.revision,
         latestHumanMessageId: latestHumanMessageId(currentGame),
         modelId: currentGame.aiModelId,
-        boardOptions: [9, 13, 19],
-        defaultBoardSize: 9,
+        boardOptions: BOARD_SIZES,
+        defaultBoardSize: DEFAULT_BOARD_SIZE,
         message: t.waitingForBoardSelection,
         actionRequired: "wait_for_go_turn",
       };
@@ -694,13 +695,12 @@ function App() {
         {showPopulationStrip && (
           <LivePopulationStrip t={t} stats={population} />
         )}
-        <main
-          className={
-            isGameView
-              ? "mx-auto w-full max-w-7xl flex-1 px-4 sm:px-6 lg:px-8"
-              : "mx-auto w-full max-w-7xl flex-1 px-4 sm:px-6 lg:px-8"
-          }
-        >
+        <ErrorNotice
+          t={t}
+          message={errorMessage}
+          onClose={() => setErrorKey(null)}
+        />
+        <main className="mx-auto w-full max-w-7xl flex-1 px-4 sm:px-6 lg:px-8">
           {view === "idle" && (
             <Lobby
               t={t}
@@ -765,11 +765,6 @@ function App() {
           )}
         </main>
         <SiteFooter t={t} />
-        <ErrorNotice
-          t={t}
-          message={errorMessage}
-          onClose={() => setErrorKey(null)}
-        />
       </div>
     </LazyMotion>
   );

@@ -216,12 +216,7 @@ function AgentInviteButton({
       t.agentInvitePrompt(window.location.origin),
     );
 
-    if (!copied) {
-      setCopyState("failed");
-      return;
-    }
-
-    setCopyState("copied");
+    setCopyState(copied ? "copied" : "failed");
     resetTimer.current = window.setTimeout(() => setCopyState("idle"), 2800);
   };
 
@@ -424,8 +419,9 @@ export function Header({
   onReturnHome: () => void;
   showWebMcpStatus?: boolean;
 }) {
+  const reducedMotion = useReducedMotion();
   return (
-    <header className="border-b bg-background/95">
+    <header className="sticky top-0 z-40 border-b bg-background/90 backdrop-blur-md">
       <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-4 sm:px-6 lg:px-8">
         <Button
           variant="ghost"
@@ -460,9 +456,17 @@ export function Header({
               <m.span
                 key={theme}
                 className="inline-flex"
-                initial={{ opacity: 0, rotate: -18, scale: 0.8 }}
+                initial={
+                  reducedMotion
+                    ? { opacity: 0 }
+                    : { opacity: 0, rotate: -18, scale: 0.8 }
+                }
                 animate={{ opacity: 1, rotate: 0, scale: 1 }}
-                exit={{ opacity: 0, rotate: 18, scale: 0.8 }}
+                exit={
+                  reducedMotion
+                    ? { opacity: 0 }
+                    : { opacity: 0, rotate: 18, scale: 0.8 }
+                }
                 transition={{ type: "spring", bounce: 0, duration: 0.22 }}
               >
                 {theme === "light" ? <MoonIcon /> : <SunIcon />}
@@ -553,11 +557,11 @@ export function Lobby({
   return (
     <PageTransition
       state="idle"
-      className="grid gap-14 py-14 lg:grid-cols-[minmax(0,0.9fr)_minmax(28rem,0.7fr)] lg:items-center lg:gap-20 lg:py-20"
+      className="grid gap-10 py-10 sm:gap-12 sm:py-14 lg:grid-cols-[minmax(0,0.9fr)_minmax(28rem,0.7fr)] lg:items-center lg:gap-x-20 lg:gap-y-10 lg:py-20"
     >
-      <div className="flex flex-col gap-9">
-        <div className="flex max-w-2xl flex-col gap-5">
-          <h1 className="text-5xl font-medium leading-none tracking-tight sm:text-6xl">
+      <div className="order-1 flex flex-col gap-8 lg:gap-9">
+        <div className="flex max-w-2xl flex-col gap-4 sm:gap-5">
+          <h1 className="text-4xl font-medium leading-none tracking-tight sm:text-5xl lg:text-6xl">
             {t.heroTitle}
           </h1>
           <p className="max-w-xl text-base leading-7 text-muted-foreground sm:text-lg">
@@ -582,15 +586,18 @@ export function Lobby({
             {t.copyAgentInviteHint}
           </p>
         </div>
+      </div>
+      <BoardPreview t={t} className="order-2 lg:row-span-2" />
+      <div className="order-3 lg:col-start-1">
         <WebMCPReadiness t={t} status={webmcpStatus} />
       </div>
-      <BoardPreview t={t} />
       <HowItWorks t={t} />
     </PageTransition>
   );
 }
 
-function HowItWorks({ t }: { t: Copy }) {
+function HowItWorksSteps({ t }: { t: Copy }) {
+  const reducedMotion = useReducedMotion();
   const steps = [
     { number: "01", title: t.stepOne, detail: t.stepOneDetail, icon: UserIcon },
     { number: "02", title: t.stepTwo, detail: t.stepTwoDetail, icon: BotIcon },
@@ -602,8 +609,43 @@ function HowItWorks({ t }: { t: Copy }) {
     },
   ];
   return (
+    <ol className="grid gap-8 md:grid-cols-3">
+      {steps.map(({ number, title, detail, icon: StepIcon }, index) => (
+        <m.li
+          key={number}
+          className="flex flex-col gap-3"
+          initial={reducedMotion ? { opacity: 0 } : { opacity: 0, y: 8 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, amount: 0.5 }}
+          transition={{
+            type: "spring",
+            bounce: 0,
+            duration: reducedMotion ? 0.12 : 0.35,
+            delay: reducedMotion ? 0 : index * 0.06,
+          }}
+        >
+          <span className="flex items-center gap-3">
+            <span className="font-heading text-2xl font-medium tabular-nums text-primary">
+              {number}
+            </span>
+            <StepIcon className="size-4 text-muted-foreground" />
+          </span>
+          <div>
+            <h3 className="text-lg font-medium">{title}</h3>
+            <p className="mt-1 text-sm leading-6 text-muted-foreground">
+              {detail}
+            </p>
+          </div>
+        </m.li>
+      ))}
+    </ol>
+  );
+}
+
+function HowItWorks({ t }: { t: Copy }) {
+  return (
     <section
-      className="flex flex-col gap-6 pt-6 lg:col-span-2 lg:pt-10"
+      className="order-4 flex flex-col gap-4 border-t pt-8 lg:col-span-2 lg:gap-6 lg:pt-10"
       id="how-it-works"
       aria-labelledby="steps-title"
     >
@@ -611,57 +653,45 @@ function HowItWorks({ t }: { t: Copy }) {
         <h2 id="steps-title" className="text-2xl font-medium">
           {t.matchStepsTitle}
         </h2>
-        <Badge variant="outline">{t.matchMode}</Badge>
+        <span className="hidden text-sm text-muted-foreground lg:inline">
+          {t.matchMode}
+        </span>
       </div>
-      <ItemGroup className="grid gap-8 md:grid-cols-3">
-        {steps.map(({ number, title, detail, icon: StepIcon }, index) => (
-          <m.div
-            key={number}
-            initial={{ opacity: 0, y: 8 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, amount: 0.5 }}
-            transition={{
-              type: "spring",
-              bounce: 0,
-              duration: 0.35,
-              delay: index * 0.06,
-            }}
-          >
-            <Item>
-              <ItemMedia variant="icon">
-                <StepIcon />
-              </ItemMedia>
-              <ItemContent>
-                <ItemTitle>
-                  <Badge variant="outline">{number}</Badge>
-                  {title}
-                </ItemTitle>
-                <ItemDescription>{detail}</ItemDescription>
-              </ItemContent>
-            </Item>
-          </m.div>
-        ))}
-      </ItemGroup>
+      <details className="group/how lg:hidden">
+        <summary className="flex cursor-pointer list-none items-center gap-2 py-1 text-sm font-medium text-primary marker:content-none [&::-webkit-details-marker]:hidden">
+          {t.navHow}
+          <ArrowRightIcon className="size-3.5 transition-transform group-open/how:rotate-90" />
+        </summary>
+        <div className="pt-5">
+          <HowItWorksSteps t={t} />
+        </div>
+      </details>
+      <div className="hidden lg:block">
+        <HowItWorksSteps t={t} />
+      </div>
     </section>
   );
 }
 
-function BoardPreview({ t }: { t: Copy }) {
+function BoardPreview({ t, className }: { t: Copy; className?: string }) {
   const reducedMotion = useReducedMotion();
   return (
     <m.section
-      className="flex flex-col gap-5"
+      className={cn("flex flex-col gap-5", className)}
       whileHover={reducedMotion ? undefined : { y: -4 }}
       transition={{ type: "spring", bounce: 0, duration: 0.35 }}
     >
       <div className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-xl font-medium">{t.boardPreview}</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p className="mt-1 text-sm leading-6 text-muted-foreground">
             {t.boardPreviewHint}
           </p>
         </div>
-        <Badge variant="secondary">{t.live}</Badge>
+        <Badge variant="secondary">
+          <span className="size-1.5 rounded-full bg-primary" aria-hidden="true" />
+          {t.live}
+        </Badge>
       </div>
       <Board
         board={previewBoard}
@@ -674,7 +704,7 @@ function BoardPreview({ t }: { t: Copy }) {
           <span className="size-2.5 rounded-full bg-foreground" />
           {t.human}
         </span>
-        <span className="text-xs">VS</span>
+        <span className="text-sm tabular-nums">vs</span>
         <span className="flex items-center gap-2">
           <span className="size-2.5 rounded-full border bg-card" />
           {t.ai}
@@ -733,12 +763,6 @@ export function Searching({
           <PopulationOverview t={t} stats={population} compact />
           <Separator />
           <section className="flex flex-col gap-5">
-            <div>
-              <h2 className="text-xl font-medium">{t.statusLabel}</h2>
-              <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                {aiWaiting ? t.aiWaitingStatus : t.statusWaiting}
-              </p>
-            </div>
             <div className="grid grid-cols-2 gap-8">
               <div>
                 <span className="text-sm text-muted-foreground">
@@ -856,7 +880,7 @@ export function Searching({
                 </m.div>
               ))}
             </ItemGroup>
-            <pre className="overflow-x-auto rounded-lg bg-muted p-4 text-sm">
+            <pre className="code-sample rounded-r-lg">
               <code>{JOIN_TOOL_EXAMPLE}</code>
             </pre>
             <WebMCPReadiness t={t} status={webmcpStatus} />
@@ -976,10 +1000,10 @@ export function GameRoom({
       <div className="flex min-w-0 flex-col gap-6 sm:gap-7">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-medium tracking-tight sm:text-5xl">
+            <h1 className="text-2xl font-medium tracking-tight sm:text-3xl">
               {spectating ? t.spectatorTitle : t.gameTitle}
             </h1>
-            <p className="mt-1.5 text-sm text-muted-foreground">
+            <p className="mt-1.5 text-sm leading-6 text-muted-foreground">
               {spectating
                 ? t.spectatorDescription
                 : t.gameSubtitle(game.boardSize)}
@@ -1000,16 +1024,29 @@ export function GameRoom({
           </Badge>
         </div>
         <section className="flex flex-col gap-4 sm:gap-5">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <h2 className="text-lg font-medium sm:text-xl">
-                {spectating ? t.spectatorMode : "Room 01"}
-              </h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {game.aiModelId
-                  ? `${spectating ? t.humanFull : t.human} vs ${game.aiModelId}`
-                  : t.gameSubtitle(game.boardSize)}
-              </p>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 text-sm">
+              <span className="flex items-center gap-2">
+                <span
+                  className="size-2.5 rounded-full bg-foreground"
+                  aria-hidden="true"
+                />
+                <span className="font-medium">
+                  {spectating ? t.humanFull : t.human}
+                </span>
+                <span className="text-muted-foreground">{t.black}</span>
+              </span>
+              <span className="text-muted-foreground">·</span>
+              <span className="flex min-w-0 items-center gap-2">
+                <span
+                  className="size-2.5 rounded-full border bg-card"
+                  aria-hidden="true"
+                />
+                <span className="truncate font-medium">
+                  {game.aiModelId ?? t.ai}
+                </span>
+                <span className="text-muted-foreground">{t.white}</span>
+              </span>
             </div>
             <Badge variant="outline">
               {isFinished
@@ -1063,48 +1100,17 @@ export function GameRoom({
             </m.div>
           </div>
           {largeBoard && (
-            <p className="text-center text-xs text-muted-foreground sm:hidden">
+            <p className="text-center text-sm text-muted-foreground sm:hidden">
               {t.panBoardHint}
             </p>
           )}
-          <div className="flex items-start justify-between gap-4 text-sm text-muted-foreground">
-            <span className="flex items-start gap-2">
-              <InfoIcon className="mt-0.5 shrink-0" />
-              {spectating
-                ? statusText
-                : isFinished
-                  ? t.statusFinished
-                  : scoringPending
-                    ? t.scoringPending
-                    : isHumanTurn
-                      ? t.tipContent
-                      : t.statusAiTurn}
-            </span>
-            <Badge variant="outline" className="shrink-0">
-              {game.boardSize} × {game.boardSize}
-            </Badge>
-          </div>
+          <p
+            className="text-sm leading-6 text-muted-foreground"
+            aria-live="polite"
+          >
+            {statusText}
+          </p>
         </section>
-        <Separator />
-        <div className="flex items-start gap-3 py-1">
-          <InfoIcon className="mt-0.5 shrink-0" />
-          <div>
-            <h2 className="font-medium">
-              {spectating
-                ? spectatorStatusLabel
-                : isFinished
-                  ? t.finishedTitle
-                  : scoringPending
-                    ? t.requestScoring
-                    : isHumanTurn
-                      ? t.turnYou
-                      : t.turnAi}
-            </h2>
-            <p className="mt-1 text-sm leading-6 text-muted-foreground">
-              {statusText}
-            </p>
-          </div>
-        </div>
       </div>
       <aside className="flex min-w-0 flex-col gap-6 xl:border-l xl:pl-10">
         <PlayerStack
@@ -1414,31 +1420,38 @@ export function ErrorNotice({
   message: string | null;
   onClose: () => void;
 }) {
-  if (!message) return null;
   return (
-    <m.div
-      className="fixed right-4 bottom-4 w-[min(26rem,calc(100%-2rem))]"
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: 12 }}
-      transition={{ type: "spring", bounce: 0, duration: 0.32 }}
-    >
-      <Alert variant="destructive">
-        <InfoIcon />
-        <AlertTitle>{t.errorLabel}</AlertTitle>
-        <AlertDescription>{message}</AlertDescription>
-        <AlertAction>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label={t.closeError}
-            onClick={onClose}
+    <AnimatePresence>
+      {message ? (
+        <m.div
+          key="room-error"
+          className="mx-auto w-full max-w-7xl px-4 pt-4 sm:px-6 lg:px-8"
+          initial={{ opacity: 0, y: -8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -6 }}
+          transition={{ type: "spring", bounce: 0, duration: 0.32 }}
+        >
+          <Alert
+            variant="destructive"
+            className="border-destructive/25 bg-[color-mix(in_srgb,var(--danger)_9%,var(--paper-raised))]"
           >
-            <XIcon />
-          </Button>
-        </AlertAction>
-      </Alert>
-    </m.div>
+            <InfoIcon />
+            <AlertTitle>{t.errorLabel}</AlertTitle>
+            <AlertDescription>{message}</AlertDescription>
+            <AlertAction>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={t.closeError}
+                onClick={onClose}
+              >
+                <XIcon />
+              </Button>
+            </AlertAction>
+          </Alert>
+        </m.div>
+      ) : null}
+    </AnimatePresence>
   );
 }
 
@@ -1659,7 +1672,7 @@ const Board = memo(function Board({
                       transition={
                         reducedMotion
                           ? { duration: 0.1 }
-                          : { type: "spring", bounce: 0.08, duration: 0.2 }
+                          : { type: "spring", bounce: 0.08, duration: 0.16 }
                       }
                     >
                       {isLast && <i />}

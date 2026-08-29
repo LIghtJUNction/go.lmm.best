@@ -66,7 +66,7 @@ export function ConversationCue({
     return (
         <button
             type="button"
-            className="group flex w-full items-center gap-3 rounded-lg border bg-card/55 p-3 text-left transition-colors hover:bg-card focus-visible:border-ring focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+            className="group flex w-full items-center gap-3 border-b py-3 text-left transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
             aria-controls="game-chat-panel"
             onClick={onOpen}
         >
@@ -86,7 +86,7 @@ export function ConversationCue({
                 </span>
                 {latest ? (
                     <span className="mt-1 block min-w-0 truncate">
-                        <span className="mr-2 text-xs font-medium text-muted-foreground">
+                        <span className="mr-2 text-sm font-medium text-muted-foreground">
                             {latest.actor === "human" ? t.human : t.ai} ·{" "}
                             {t.messageAtMove(latest.moveNumber)}
                         </span>
@@ -144,7 +144,7 @@ export function GameChat({
     return (
         <section
             id="game-chat-panel"
-            className="scroll-mt-6 flex flex-col gap-4 rounded-lg border bg-card/35 p-4"
+            className="scroll-mt-6 flex flex-col gap-4"
             aria-labelledby="game-chat-title"
         >
             <div className="flex items-start justify-between gap-4">
@@ -164,7 +164,7 @@ export function GameChat({
             </div>
 
             <MessageScrollerProvider>
-                <MessageScroller className="h-64 min-h-0 rounded-lg border bg-card/35">
+                <MessageScroller className="h-64 min-h-0 rounded-lg border bg-muted/40">
                     <MessageScrollerViewport>
                         <MessageScrollerContent className="gap-4 p-3">
                             {messages.length === 0 ? (
@@ -375,7 +375,7 @@ export function ScoreSummary({ t, game }: { t: Copy; game: GameState }) {
                         <strong className="mt-1 block font-heading text-3xl tabular-nums">
                             {side.total}
                         </strong>
-                        <p className="mt-1 text-xs leading-5 text-muted-foreground">
+                        <p className="mt-1 text-sm leading-6 text-muted-foreground">
                             {t.stones} {side.stones} · {t.territory}{" "}
                             {side.territory}
                             {komi > 0 ? ` · ${t.komi} ${komi}` : ""}

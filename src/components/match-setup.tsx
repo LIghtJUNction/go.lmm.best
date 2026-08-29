@@ -6,7 +6,12 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import type { Copy } from "@/lib/i18n";
-import { BOARD_SIZES, DEFAULT_BOARD_SIZE, type BoardSize } from "@/lib/session";
+import {
+  BOARD_SIZES,
+  DEFAULT_BOARD_SIZE,
+  isBoardSize,
+  type BoardSize,
+} from "@/lib/session";
 
 export function MatchSetup({
   t,
@@ -61,9 +66,7 @@ export function MatchSetup({
         value={[String(boardSize)]}
         onValueChange={(values) => {
           const next = Number(values[0]);
-          if (BOARD_SIZES.includes(next as BoardSize)) {
-            setBoardSize(next as BoardSize);
-          }
+          if (isBoardSize(next)) setBoardSize(next);
         }}
         variant="outline"
         spacing={2}
@@ -79,7 +82,7 @@ export function MatchSetup({
             <span className="flex w-full items-center justify-between gap-3">
               <span className="flex items-center gap-2">
                 <Grid3X3Icon className="size-4" />
-                <strong className="text-xl font-semibold tabular-nums">
+                <strong className="font-heading text-2xl font-medium tabular-nums">
                   {size}×{size}
                 </strong>
               </span>
@@ -88,7 +91,7 @@ export function MatchSetup({
               )}
             </span>
             <span className="font-medium">{details[size].label}</span>
-            <span className="text-xs leading-5 text-muted-foreground">
+            <span className="text-sm leading-6 text-muted-foreground">
               {details[size].description}
             </span>
           </ToggleGroupItem>
