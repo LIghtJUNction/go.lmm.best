@@ -205,7 +205,7 @@
   }
 
   .code-sample {
-    overflow-x-auto;
+    overflow-x: auto;
     border-left: 3px solid var(--jade);
     background: var(--paper-muted);
     color: var(--ink);
