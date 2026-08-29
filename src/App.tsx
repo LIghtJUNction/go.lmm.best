@@ -35,6 +35,7 @@ import {
   resignSessionGame,
   respondToSessionScoring,
   withdrawSessionScoring,
+  type BoardSize,
   type GameState,
   type MatchMode,
   type QueueSide,
