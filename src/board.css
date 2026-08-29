@@ -5,6 +5,19 @@
   border: 1px solid color-mix(in srgb, var(--board-line) 28%, transparent);
   border-radius: var(--radius);
   background-color: var(--board-base);
+  background-image:
+    linear-gradient(
+      165deg,
+      color-mix(in srgb, var(--board-light) 38%, transparent),
+      transparent 42%,
+      color-mix(in srgb, var(--board-deep) 26%, transparent)
+    ),
+    repeating-linear-gradient(
+      92deg,
+      color-mix(in srgb, var(--board-light) 18%, transparent) 0,
+      transparent 9px,
+      color-mix(in srgb, var(--board-deep) 14%, transparent) 18px
+    );
   box-shadow:
     inset 0 1px rgb(255 255 255 / 24%),
     0 12px 30px rgb(65 47 22 / 12%);
@@ -107,28 +120,28 @@
 
 .has-black .stone {
   background: radial-gradient(
-    circle at 35% 28%,
-    #4f5650 0%,
-    #232824 34%,
-    #101310 78%
+    circle at 32% 30%,
+    #3a403b 0%,
+    #1c201c 52%,
+    #101310 100%
   );
   box-shadow:
-    inset -2px -3px 5px rgb(0 0 0 / 38%),
-    inset 1px 1px 3px rgb(255 255 255 / 12%),
-    0 3px 7px rgb(73 48 19 / 28%);
+    inset -1px -2px 3px rgb(0 0 0 / 28%),
+    inset 1px 1px 2px rgb(255 255 255 / 8%),
+    0 2px 5px rgb(73 48 19 / 24%);
 }
 
 .has-white .stone {
   background: radial-gradient(
-    circle at 35% 28%,
-    #fff 0%,
-    #f8f5ec 55%,
-    #d5d1c5 100%
+    circle at 32% 30%,
+    #fbf8f0 0%,
+    #efebe1 62%,
+    #d8d3c6 100%
   );
   box-shadow:
-    inset -2px -3px 5px rgb(70 66 55 / 18%),
-    inset 1px 1px 3px rgb(255 255 255 / 72%),
-    0 3px 7px rgb(73 48 19 / 22%);
+    inset -1px -2px 3px rgb(70 66 55 / 14%),
+    inset 1px 1px 2px rgb(255 255 255 / 48%),
+    0 2px 5px rgb(73 48 19 / 18%);
 }
 
 .stone i {

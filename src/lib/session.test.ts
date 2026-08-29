@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   appendMessage,
   createGame,
+  isBoardSize,
   passSessionTurn,
   playSessionMove,
   requestSessionScoring,
@@ -125,5 +126,15 @@ describe("game messages", () => {
       ok: false,
       error: "message_duplicate",
     });
+  });
+});
+
+describe("board size guard", () => {
+  it("accepts only the three match boards", () => {
+    expect(isBoardSize(9)).toBe(true);
+    expect(isBoardSize(13)).toBe(true);
+    expect(isBoardSize(19)).toBe(true);
+    expect(isBoardSize(15)).toBe(false);
+    expect(isBoardSize(Number.NaN)).toBe(false);
   });
 });

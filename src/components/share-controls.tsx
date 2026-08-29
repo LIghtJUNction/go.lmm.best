@@ -78,6 +78,13 @@ export function ShareControls({
   const copyLink = async (url: string) => {
     setCopyStatus((await writeToClipboard(url)) ? "copied" : "failed");
   };
+
+  useEffect(() => {
+    if (copyStatus === "idle") return;
+    const timer = window.setTimeout(() => setCopyStatus("idle"), 2800);
+    return () => window.clearTimeout(timer);
+  }, [copyStatus]);
+
   const createAndCopy = async () => {
     const url = await onCreate();
     if (url) await copyLink(url);
@@ -139,8 +146,8 @@ export function ShareControls({
 
   return (
     <section
-      className="flex flex-col gap-3 rounded-lg border bg-card/35 p-4"
-      aria-labelledby="share-game-title"
+        className="flex flex-col gap-3"
+        aria-labelledby="share-game-title"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="space-y-1">

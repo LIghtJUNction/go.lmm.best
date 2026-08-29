@@ -203,6 +203,16 @@
   :focus-visible {
     scroll-margin-block: 1rem;
   }
+
+  .code-sample {
+    overflow-x: auto;
+    border-left: 3px solid var(--jade);
+    background: var(--paper-muted);
+    color: var(--ink);
+    padding: 0.9rem 1.1rem;
+    font-size: 0.875rem;
+    line-height: 1.6;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

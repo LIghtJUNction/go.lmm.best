@@ -17,6 +17,10 @@ export const MAX_MESSAGE_LENGTH = 240;
 export const MAX_MESSAGES = 100;
 
 export type BoardSize = (typeof BOARD_SIZES)[number];
+
+export function isBoardSize(value: number): value is BoardSize {
+  return (BOARD_SIZES as readonly number[]).includes(value);
+}
 export type RoomView = "idle" | "searching" | "setup" | "playing" | "finished";
 export type MatchMode = "real" | "demo";
 export type Theme = "light" | "dark";
